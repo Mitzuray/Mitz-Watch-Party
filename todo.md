@@ -38,3 +38,12 @@
 - [x] Teste vitest: criar sala retorna código válido
 - [x] Teste vitest: buscar sala existente
 - [x] Teste vitest: enviar e listar mensagens
+
+
+## Reações com Emojis Flutuantes (Nova Feature)
+- [x] WebSocket: evento reaction (enviar reação com emoji e posição)
+- [x] WebSocket: evento reaction-broadcast (receber reação de outro usuário)
+- [x] Componente ReactionPicker com emojis pré-definidos (❤️ 😂 🔥 👏 🎉 😍)
+- [x] Componente FloatingReaction com animação de subida e fade-out
+- [x] Integrar reações na Room com botão de reação no player
+- [x] Teste vitest: enviar reação sincroniza para todos

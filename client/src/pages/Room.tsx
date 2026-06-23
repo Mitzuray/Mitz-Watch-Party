@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { Copy, Users, Send, LogOut, Radio, Link2, CheckCircle2 } from "lucide-react";
 import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
 import RaveParticles from "@/components/RaveParticles";
-import { useSocket, ChatMessage, VideoState } from "@/hooks/useSocket";
+import ReactionPicker from "@/components/ReactionPicker";
+import FloatingReaction from "@/components/FloatingReaction";
+import { useSocket, ChatMessage, VideoState, Reaction } from "@/hooks/useSocket";
 
 export default function Room() {
   const { code } = useParams<{ code: string }>();
@@ -24,10 +26,12 @@ export default function Room() {
   const [participantCount, setParticipantCount] = useState(1);
   const [codeCopied, setCodeCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [reactions, setReactions] = useState<Array<Reaction & { key: string }>>([]);
 
   const playerRef = useRef<VideoPlayerHandle>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reactionCounterRef = useRef(0);
 
   // Fetch room data
   const { data: room, isLoading, error } = trpc.rooms.get.useQuery(
@@ -114,7 +118,12 @@ export default function Room() {
     ]);
   }, []);
 
-  const { sendVideoSync, sendVideoUrlChange, sendChatMessage } = useSocket({
+  const handleReaction = useCallback((reaction: Reaction) => {
+    const key = `${reaction.id}-${reactionCounterRef.current++}`;
+    setReactions((prev) => [...prev, { ...reaction, key }]);
+  }, []);
+
+  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction } = useSocket({
     roomCode,
     username,
     onVideoState: handleVideoState,
@@ -124,6 +133,7 @@ export default function Room() {
     onParticipantsUpdate: handleParticipantsUpdate,
     onUserJoined: handleUserJoined,
     onUserLeft: handleUserLeft,
+    onReaction: handleReaction,
   });
 
   // Player event handlers
@@ -330,6 +340,23 @@ export default function Room() {
                 ⚡ SINCRONIZANDO
               </div>
             )}
+            {/* Reaction picker */}
+            <div className="absolute bottom-4 right-4 z-20">
+              <ReactionPicker onReact={sendReaction} />
+            </div>
+            {/* Floating reactions */}
+            {reactions.map((reaction) => (
+              <FloatingReaction
+                key={reaction.key}
+                emoji={reaction.emoji}
+                x={reaction.x}
+                y={reaction.y}
+                username={reaction.username}
+                onComplete={() => {
+                  setReactions((prev) => prev.filter((r) => r.key !== reaction.key));
+                }}
+              />
+            ))}
           </div>
         </div>
 

@@ -10,6 +10,14 @@ export interface VideoState {
   updatedAt: number;
 }
 
+export interface Reaction {
+  emoji: string;
+  username: string;
+  x: number;
+  y: number;
+  id: string;
+}
+
 // In-memory state for rooms (participants + video state)
 const roomParticipants: Map<string, Set<string>> = new Map();
 const roomVideoState: Map<string, VideoState> = new Map();
@@ -120,6 +128,19 @@ export function setupSocketIO(httpServer: HttpServer) {
       const msg = { username, text, createdAt: createdAt.toISOString() };
       // Broadcast to everyone in the room (including sender)
       io.to(roomCode).emit("chat-message", msg);
+    });
+
+    // Reaction
+    socket.on("reaction", ({ roomCode, emoji, x, y }: { roomCode: string; emoji: string; x: number; y: number }) => {
+      const id = `${socket.id}-${Date.now()}`;
+      // Broadcast to everyone in the room (including sender)
+      io.to(roomCode).emit("reaction-broadcast", {
+        emoji,
+        username: currentUsername,
+        x,
+        y,
+        id,
+      });
     });
 
     // Disconnect

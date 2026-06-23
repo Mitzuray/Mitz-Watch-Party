@@ -13,6 +13,14 @@ export interface VideoState {
   updatedAt: number;
 }
 
+export interface Reaction {
+  emoji: string;
+  username: string;
+  x: number;
+  y: number;
+  id: string;
+}
+
 interface UseSocketOptions {
   roomCode: string;
   username: string;
@@ -23,6 +31,7 @@ interface UseSocketOptions {
   onParticipantsUpdate?: (count: number) => void;
   onUserJoined?: (username: string) => void;
   onUserLeft?: (username: string) => void;
+  onReaction?: (reaction: Reaction) => void;
 }
 
 export function useSocket({
@@ -35,6 +44,7 @@ export function useSocket({
   onParticipantsUpdate,
   onUserJoined,
   onUserLeft,
+  onReaction,
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
 
@@ -85,6 +95,10 @@ export function useSocket({
       onUserLeft?.(u);
     });
 
+    socket.on("reaction-broadcast", (reaction: Reaction) => {
+      onReaction?.(reaction);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -104,5 +118,9 @@ export function useSocket({
     socketRef.current?.emit("chat-message", { roomCode, username, text });
   }, [roomCode, username]);
 
-  return { sendVideoSync, sendVideoUrlChange, sendChatMessage };
+  const sendReaction = useCallback((emoji: string, x: number, y: number) => {
+    socketRef.current?.emit("reaction", { roomCode, emoji, x, y });
+  }, [roomCode]);
+
+  return { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction };
 }
