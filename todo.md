@@ -47,3 +47,13 @@
 - [x] Componente FloatingReaction com animação de subida e fade-out
 - [x] Integrar reações na Room com botão de reação no player
 - [x] Teste vitest: enviar reação sincroniza para todos
+
+
+## Fullscreen Player (Nova Feature)
+- [x] Estado de fullscreen no Room.tsx
+- [x] Botão fullscreen no player
+- [x] Layout fullscreen: player ocupa tela inteira, chat escondido
+- [x] Botão flutuante para abrir/fechar chat em fullscreen
+- [x] Botão flutuante para ver reações em fullscreen
+- [x] Transição suave entre modo normal e fullscreen
+- [x] Escape key para sair do fullscreen

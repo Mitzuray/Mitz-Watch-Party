@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Copy, Users, Send, LogOut, Radio, Link2, CheckCircle2 } from "lucide-react";
+import { Copy, Users, Send, LogOut, Radio, Link2, CheckCircle2, Maximize2, Minimize2, MessageCircle, Smile } from "lucide-react";
 import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
 import RaveParticles from "@/components/RaveParticles";
 import ReactionPicker from "@/components/ReactionPicker";
@@ -26,7 +26,10 @@ export default function Room() {
   const [participantCount, setParticipantCount] = useState(1);
   const [codeCopied, setCodeCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [reactions, setReactions] = useState<Array<Reaction & { key: string }>>([]);
+  const [reactions, setReactions] = useState<Array<Reaction & { key: string }>>([])
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showChatInFullscreen, setShowChatInFullscreen] = useState(false);
+  const [showReactionsPanel, setShowReactionsPanel] = useState(false);
 
   const playerRef = useRef<VideoPlayerHandle>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -181,6 +184,31 @@ export default function Room() {
     navigate("/");
   };
 
+  // Handle escape key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+        setShowChatInFullscreen(false);
+        setShowReactionsPanel(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
+
+  // Prevent body scroll when fullscreen
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isFullscreen])
+
   if (isLoading) {
     return (
       <div className="rave-bg min-h-screen flex items-center justify-center">
@@ -208,6 +236,251 @@ export default function Room() {
             Voltar ao início
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col" style={{ height: "100dvh" }}>
+        {/* Fullscreen video */}
+        <div className="flex-1 overflow-hidden relative">
+          <VideoPlayer
+            ref={playerRef}
+            videoUrl={videoUrl}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onSeek={handleSeek}
+            isSyncing={isSyncing}
+          />
+          {/* Reaction picker */}
+          <div className="absolute bottom-4 right-4 z-20">
+            <ReactionPicker onReact={sendReaction} />
+          </div>
+          {/* Floating reactions */}
+          {reactions.map((reaction) => (
+            <FloatingReaction
+              key={reaction.key}
+              emoji={reaction.emoji}
+              x={reaction.x}
+              y={reaction.y}
+              username={reaction.username}
+              onComplete={() => {
+                setReactions((prev) => prev.filter((r) => r.key !== reaction.key));
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Floating buttons */}
+        <div className="fixed bottom-6 left-6 flex flex-col gap-3 z-50">
+          <button
+            onClick={() => setShowChatInFullscreen(!showChatInFullscreen)}
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
+              boxShadow: "0 0 20px oklch(0.65 0.28 310 / 0.4)",
+            }}
+            title="Abrir chat"
+          >
+            <MessageCircle className="w-5 h-5" style={{ color: "white" }} />
+          </button>
+          <button
+            onClick={() => setShowReactionsPanel(!showReactionsPanel)}
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.55 0.22 200), oklch(0.45 0.18 220))",
+              boxShadow: "0 0 20px oklch(0.80 0.18 200 / 0.4)",
+            }}
+            title="Ver reações"
+          >
+            <Smile className="w-5 h-5" style={{ color: "white" }} />
+          </button>
+          <button
+            onClick={() => setIsFullscreen(false)}
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.55 0.25 0), oklch(0.45 0.20 10))",
+              boxShadow: "0 0 20px oklch(0.70 0.28 0 / 0.4)",
+            }}
+            title="Sair do fullscreen (ESC)"
+          >
+            <Minimize2 className="w-5 h-5" style={{ color: "white" }} />
+          </button>
+        </div>
+
+        {/* Chat panel in fullscreen */}
+        {showChatInFullscreen && (
+          <div
+            className="fixed bottom-6 right-6 w-80 h-96 rounded-lg flex flex-col shadow-2xl z-40 animate-in slide-in-from-right duration-300"
+            style={{
+              background: "oklch(0.08 0.03 280 / 0.98)",
+              border: "1px solid oklch(0.65 0.28 310 / 0.3)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            {/* Chat header */}
+            <div
+              className="px-4 py-3 shrink-0 flex items-center justify-between"
+              style={{ borderBottom: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
+            >
+              <span className="font-display text-xs font-bold tracking-[0.2em] uppercase" style={{ color: "oklch(0.65 0.28 310)" }}>
+                Chat ao Vivo
+              </span>
+              <button
+                onClick={() => setShowChatInFullscreen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground text-xs">Nenhuma mensagem ainda.</p>
+                </div>
+              )}
+              {chatMessages.map((msg, i) => {
+                const isSystem = msg.username === "sistema";
+                const isMe = msg.username === username;
+
+                if (isSystem) {
+                  return (
+                    <div key={i} className="text-center">
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full"
+                        style={{
+                          color: "oklch(0.80 0.18 200 / 0.8)",
+                          background: "oklch(0.80 0.18 200 / 0.08)",
+                        }}
+                      >
+                        {msg.text}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={i} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                    <span
+                      className="text-[10px] font-medium mb-0.5 px-1"
+                      style={{
+                        color: isMe ? "oklch(0.65 0.28 310)" : "oklch(0.70 0.28 0)",
+                      }}
+                    >
+                      {isMe ? "Você" : msg.username}
+                    </span>
+                    <div
+                      className="max-w-[85%] px-3 py-2 rounded-2xl text-xs break-words"
+                      style={
+                        isMe
+                          ? {
+                              background: "oklch(0.55 0.28 310 / 0.25)",
+                              border: "1px solid oklch(0.65 0.28 310 / 0.3)",
+                              color: "oklch(0.95 0.01 280)",
+                              borderBottomRightRadius: "4px",
+                            }
+                          : {
+                              background: "oklch(0.12 0.04 280)",
+                              border: "1px solid oklch(0.25 0.06 280 / 0.5)",
+                              color: "oklch(0.90 0.02 280)",
+                              borderBottomLeftRadius: "4px",
+                            }
+                      }
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat input */}
+            <div
+              className="px-3 py-3 shrink-0"
+              style={{ borderTop: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
+            >
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Msg..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  className="h-8 text-xs"
+                  style={{
+                    background: "oklch(0.12 0.04 280)",
+                    border: "1px solid oklch(0.65 0.28 310 / 0.25)",
+                    color: "oklch(0.95 0.01 280)",
+                  }}
+                  maxLength={500}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
+                    boxShadow: "0 0 10px oklch(0.65 0.28 310 / 0.3)",
+                  }}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reactions panel in fullscreen */}
+        {showReactionsPanel && (
+          <div
+            className="fixed top-6 right-6 max-w-sm max-h-96 rounded-lg overflow-y-auto shadow-2xl z-40 animate-in slide-in-from-top duration-300"
+            style={{
+              background: "oklch(0.08 0.03 280 / 0.98)",
+              border: "1px solid oklch(0.80 0.18 200 / 0.3)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <div
+              className="px-4 py-3 flex items-center justify-between sticky top-0"
+              style={{
+                background: "oklch(0.08 0.03 280 / 0.98)",
+                borderBottom: "1px solid oklch(0.80 0.18 200 / 0.15)",
+              }}
+            >
+              <span className="font-display text-xs font-bold tracking-[0.2em] uppercase" style={{ color: "oklch(0.80 0.18 200)" }}>
+                Reações
+              </span>
+              <button
+                onClick={() => setShowReactionsPanel(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {reactions.length === 0 ? (
+                <p className="text-center text-muted-foreground text-xs py-4">Nenhuma reação ainda.</p>
+              ) : (
+                reactions.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="text-xl">{r.emoji}</span>
+                    <span className="text-xs" style={{ color: "oklch(0.80 0.18 200)" }}>
+                      {r.username}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -340,8 +613,20 @@ export default function Room() {
                 ⚡ SINCRONIZANDO
               </div>
             )}
-            {/* Reaction picker */}
-            <div className="absolute bottom-4 right-4 z-20">
+            {/* Fullscreen + Reaction picker */}
+            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
+              <button
+                onClick={() => setIsFullscreen(true)}
+                className="h-9 w-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                style={{
+                  background: "oklch(0.12 0.04 280)",
+                  border: "1px solid oklch(0.65 0.28 310 / 0.3)",
+                  color: "oklch(0.65 0.28 310)",
+                }}
+                title="Tela cheia"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
               <ReactionPicker onReact={sendReaction} />
             </div>
             {/* Floating reactions */}
