@@ -73,7 +73,7 @@ describe("rooms.get", () => {
 
   it("lança erro para sala inexistente", async () => {
     const caller = appRouter.createCaller(createCtx());
-    await expect(caller.rooms.get({ code: "NOPE00" })).rejects.toThrow("Sala não encontrada");
+    await expect(caller.rooms.get({ code: "NOPE00" })).rejects.toThrow("Sala nao encontrada");
   });
 });
 

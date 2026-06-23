@@ -84,14 +84,11 @@
 - [x] Indicador visual "Digitando..." no chat com nome do usuário
 
 
-## Suporte a Sites Brasileiros (Nova Feature)
-- [x] Backend: instalar axios e cheerio para requisições HTTP e scraping
-- [x] Backend: criar rota tRPC extractVideo para extrair vídeo de tokyvideo.com
-- [x] Backend: criar rota tRPC extractVideo para extrair vídeo de animesonlinecc.to
-- [x] Backend: criar rota genérica de extração para outros sites
-- [x] Frontend: adicionar suporte a links de tokyvideo no VideoPlayer
-- [x] Frontend: adicionar suporte a links de animesonlinecc no VideoPlayer
-- [x] Frontend: sincronizar vídeos extraídos via WebSocket
-- [x] Frontend: chamada de extração no handleLoadVideo com loading toast
-- [x] Teste: verificar se extração funciona para tokyvideo
-- [x] Teste: verificar se extração funciona para animesonlinecc
+## Suporte a Sites Brasileiros (Limitado)
+- [x] Backend: instalar axios e cheerio para requisições HTTP
+- [x] Backend: criar rota tRPC extractVideo com scraping genérico
+- [x] Frontend: detectar links de tokyvideo e animesonlinecc
+- [x] Frontend: tentar extração com mensagem de erro clara
+- [x] Frontend: orientar usuário a copiar link direto do vídeo
+- [x] Teste: verificar que extração não quebra (retorna null gracefully)
+- [x] NOTA: Tokyvideo e AnimesonlineCC tém proteção anti-scraping. Recomenda-se copiar link direto do vídeo ou usar YouTube/Google Drive

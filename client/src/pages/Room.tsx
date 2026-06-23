@@ -232,15 +232,38 @@ export default function Room() {
 
     // Check if URL needs extraction (tokyvideo, animesonline, etc)
     if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
-      toast.loading("Extraindo video...");
+      const toastId = toast.loading("Extraindo video...");
       try {
-        const result = await fetch(`/api/trpc/rooms.extractVideo?input=${encodeURIComponent(JSON.stringify({ url }))}`).then(r => r.json());
-        if (result.error) throw new Error(result.error.message);
-        sendVideoUrlChange(result.result.data.videoUrl);
-        toast.success("Video extraido e carregado para todos!");
+        // Call tRPC query correctly
+        const input = { url };
+        const response = await fetch(
+          `/api/trpc/rooms.extractVideo?input=${encodeURIComponent(JSON.stringify(input))}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error.message || "Erro ao extrair video");
+        }
+        
+        const videoUrl = data.result?.data?.videoUrl;
+        if (!videoUrl) {
+          throw new Error("URL de video nao encontrada na resposta");
+        }
+        
+        sendVideoUrlChange(videoUrl);
+        toast.success("Video extraido e carregado para todos!", { id: toastId });
       } catch (error) {
-        toast.error("Erro ao extrair video. Tente YouTube ou URL direta.");
-        console.error(error);
+        const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
+        toast.error(
+          `Este site nao eh suportado para sincronizacao. Copie o link direto do video (geralmente tem um botao 'Copiar' ou 'Download') e cole aqui. Ou use YouTube/Google Drive.`,
+          { id: toastId, duration: 5000 }
+        );
+        console.error("[VideoExtraction]", error);
       }
     } else {
       sendVideoUrlChange(url);
