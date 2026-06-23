@@ -18,6 +18,10 @@ export interface Reaction {
   id: string;
 }
 
+export interface TypingUser {
+  username: string;
+}
+
 // In-memory state for rooms (participants + video state)
 const roomParticipants: Map<string, Set<string>> = new Map();
 const roomVideoState: Map<string, VideoState> = new Map();
@@ -140,6 +144,21 @@ export function setupSocketIO(httpServer: HttpServer) {
         x,
         y,
         id,
+      });
+    });
+
+    // Typing indicator
+    socket.on("typing", ({ roomCode }: { roomCode: string }) => {
+      // Broadcast to everyone in the room EXCEPT sender
+      socket.to(roomCode).emit("typing-broadcast", {
+        username: currentUsername,
+      });
+    });
+
+    // Stop typing on disconnect
+    socket.on("stop-typing", ({ roomCode }: { roomCode: string }) => {
+      socket.to(roomCode).emit("stop-typing-broadcast", {
+        username: currentUsername,
       });
     });
 

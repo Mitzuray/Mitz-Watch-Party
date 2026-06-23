@@ -21,6 +21,10 @@ export interface Reaction {
   id: string;
 }
 
+export interface TypingUser {
+  username: string;
+}
+
 interface UseSocketOptions {
   roomCode: string;
   username: string;
@@ -32,6 +36,8 @@ interface UseSocketOptions {
   onUserJoined?: (username: string) => void;
   onUserLeft?: (username: string) => void;
   onReaction?: (reaction: Reaction) => void;
+  onTyping?: (user: TypingUser) => void;
+  onStopTyping?: (username: string) => void;
 }
 
 export function useSocket({
@@ -45,6 +51,8 @@ export function useSocket({
   onUserJoined,
   onUserLeft,
   onReaction,
+  onTyping,
+  onStopTyping,
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
 
@@ -99,6 +107,14 @@ export function useSocket({
       onReaction?.(reaction);
     });
 
+    socket.on("typing-broadcast", (user: TypingUser) => {
+      onTyping?.(user);
+    });
+
+    socket.on("stop-typing-broadcast", ({ username: u }: { username: string }) => {
+      onStopTyping?.(u);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -122,5 +138,13 @@ export function useSocket({
     socketRef.current?.emit("reaction", { roomCode, emoji, x, y });
   }, [roomCode]);
 
-  return { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction };
+  const sendTyping = useCallback(() => {
+    socketRef.current?.emit("typing", { roomCode });
+  }, [roomCode]);
+
+  const sendStopTyping = useCallback(() => {
+    socketRef.current?.emit("stop-typing", { roomCode });
+  }, [roomCode]);
+
+  return { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction, sendTyping, sendStopTyping };
 }

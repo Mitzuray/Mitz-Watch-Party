@@ -57,3 +57,12 @@
 - [x] Botão flutuante para ver reações em fullscreen
 - [x] Transição suave entre modo normal e fullscreen
 - [x] Escape key para sair do fullscreen
+
+
+## Typing Indicator & App Name (Nova Feature)
+- [x] Mudar nome do app para "Mitz Watch"
+- [x] WebSocket: evento typing (enviar quando usuário está digitando)
+- [x] WebSocket: evento typing-broadcast (receber indicador de digitação)
+- [x] Componente TypingIndicator com animação de pontos
+- [x] Mostrar "X está digitando..." no chat
+- [x] Parar de enviar typing quando usuário para de digitar (timeout)

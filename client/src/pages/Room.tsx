@@ -9,7 +9,8 @@ import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
 import RaveParticles from "@/components/RaveParticles";
 import ReactionPicker from "@/components/ReactionPicker";
 import FloatingReaction from "@/components/FloatingReaction";
-import { useSocket, ChatMessage, VideoState, Reaction } from "@/hooks/useSocket";
+import TypingIndicator from "@/components/TypingIndicator";
+import { useSocket, ChatMessage, VideoState, Reaction, TypingUser } from "@/hooks/useSocket";
 
 export default function Room() {
   const { code } = useParams<{ code: string }>();
@@ -30,11 +31,14 @@ export default function Room() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showChatInFullscreen, setShowChatInFullscreen] = useState(false);
   const [showReactionsPanel, setShowReactionsPanel] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const playerRef = useRef<VideoPlayerHandle>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionCounterRef = useRef(0);
+  const lastTypingTimeRef = useRef(0);
 
   // Fetch room data
   const { data: room, isLoading, error } = trpc.rooms.get.useQuery(
@@ -126,7 +130,42 @@ export default function Room() {
     setReactions((prev) => [...prev, { ...reaction, key }]);
   }, []);
 
-  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction } = useSocket({
+  const handleTyping = useCallback((user: TypingUser) => {
+    setTypingUsers((prev) => {
+      const updated = new Set(prev);
+      updated.add(user.username);
+      return updated;
+    });
+    
+    // Clear existing timeout for this user
+    const existingTimeout = typingTimeoutRef.current.get(user.username);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    
+    // Set new timeout to remove user from typing list after 3 seconds
+    const timeout = setTimeout(() => {
+      setTypingUsers((prev) => {
+        const updated = new Set(prev);
+        updated.delete(user.username);
+        return updated;
+      });
+      typingTimeoutRef.current.delete(user.username);
+    }, 3000);
+    
+    typingTimeoutRef.current.set(user.username, timeout);
+  }, []);
+
+  const handleStopTyping = useCallback((username: string) => {
+    const timeout = typingTimeoutRef.current.get(username);
+    if (timeout) clearTimeout(timeout);
+    typingTimeoutRef.current.delete(username);
+    setTypingUsers((prev) => {
+      const updated = new Set(prev);
+      updated.delete(username);
+      return updated;
+    });
+  }, []);
+
+  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction, sendTyping, sendStopTyping } = useSocket({
     roomCode,
     username,
     onVideoState: handleVideoState,
@@ -137,6 +176,8 @@ export default function Room() {
     onUserJoined: handleUserJoined,
     onUserLeft: handleUserLeft,
     onReaction: handleReaction,
+    onTyping: handleTyping,
+    onStopTyping: handleStopTyping,
   });
 
   // Player event handlers
@@ -170,7 +211,29 @@ export default function Room() {
     if (!text) return;
     sendChatMessage(text);
     setChatInput("");
+    sendStopTyping();
   };
+
+  const handleChatInputChange = (value: string) => {
+    setChatInput(value);
+    
+    // Send typing indicator every 300ms max
+    const now = Date.now();
+    if (now - lastTypingTimeRef.current > 300) {
+      if (value.length > 0) {
+        sendTyping();
+      }
+      lastTypingTimeRef.current = now;
+    }
+    
+    // Stop typing when input is empty
+    if (value.length === 0) {
+      sendStopTyping();
+    }
+  };
+
+  // Get typing users array for rendering
+  const typingUsersArray = Array.from(typingUsers)
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode).then(() => {
@@ -207,7 +270,15 @@ export default function Room() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isFullscreen])
+  }, [isFullscreen]);
+
+  // Cleanup typing timeouts on unmount
+  useEffect(() => {
+    return () => {
+      typingTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeoutRef.current.clear();
+    };
+  }, [])
 
   if (isLoading) {
     return (
@@ -395,6 +466,10 @@ export default function Room() {
                   </div>
                 );
               })}
+              {/* Typing indicators */}
+              {typingUsersArray.map((typingUsername) => (
+                <TypingIndicator key={`typing-${typingUsername}`} username={typingUsername} />
+              ))}
               <div ref={chatEndRef} />
             </div>
 
@@ -407,7 +482,7 @@ export default function Room() {
                 <Input
                   placeholder="Msg..."
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={(e) => handleChatInputChange(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -502,7 +577,7 @@ export default function Room() {
         <div className="flex items-center gap-2">
           <Radio className="w-5 h-5 animate-neon-pulse" style={{ color: "oklch(0.65 0.28 310)" }} />
           <span className="font-display font-bold text-sm tracking-[0.2em] hidden sm:block" style={{ color: "oklch(0.65 0.28 310)" }}>
-            RAVEWATCH
+            MITZ WATCH
           </span>
         </div>
 

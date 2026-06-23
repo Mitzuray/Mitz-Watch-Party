@@ -86,7 +86,7 @@ export default function Home() {
             className="font-display text-lg font-bold tracking-[0.3em] uppercase"
             style={{ color: "oklch(0.65 0.28 310 / 0.8)" }}
           >
-            RAVEWATCH
+            MITZ WATCH
           </span>
           <Radio className="w-8 h-8 text-[oklch(0.65_0.28_310)] animate-neon-pulse" />
         </div>
@@ -102,7 +102,7 @@ export default function Home() {
             filter: "drop-shadow(0 0 20px oklch(0.65 0.28 310 / 0.5))",
           }}
         >
-          WATCH PARTY
+          MITZ WATCH
         </h1>
 
         <p className="text-muted-foreground text-lg mb-10 max-w-md">
