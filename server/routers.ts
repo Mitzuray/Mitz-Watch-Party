@@ -3,7 +3,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { createRoom, getRoomByCode, getMessagesByRoom } from "./db";
+import { createRoom, getRoomByCode, getMessagesByRoom, updateRoomLeader } from "./db";
 import { nanoid } from "nanoid";
 
 export const appRouter = router({
@@ -21,7 +21,6 @@ export const appRouter = router({
     create: publicProcedure
       .input(z.object({ hostName: z.string().min(1).max(64) }))
       .mutation(async ({ input }) => {
-        // Generate unique 6-char alphanumeric code
         let code: string;
         let attempts = 0;
         do {
@@ -32,7 +31,7 @@ export const appRouter = router({
           if (!existing) break;
         } while (true);
 
-        const room = await createRoom({ code, hostName: input.hostName });
+        const room = await createRoom({ code, hostName: input.hostName, leaderName: input.hostName });
         return room;
       }),
 
@@ -40,7 +39,7 @@ export const appRouter = router({
       .input(z.object({ code: z.string().min(1).max(8) }))
       .query(async ({ input }) => {
         const room = await getRoomByCode(input.code.toUpperCase());
-        if (!room) throw new Error("Sala não encontrada");
+        if (!room) throw new Error("Sala nao encontrada");
         return room;
       }),
 
@@ -48,6 +47,15 @@ export const appRouter = router({
       .input(z.object({ roomCode: z.string().min(1).max(8) }))
       .query(async ({ input }) => {
         return getMessagesByRoom(input.roomCode.toUpperCase(), 100);
+      }),
+
+    transferLeadership: publicProcedure
+      .input(z.object({ roomCode: z.string().min(1).max(8), newLeaderName: z.string().min(1).max(128) }))
+      .mutation(async ({ input }) => {
+        const room = await getRoomByCode(input.roomCode.toUpperCase());
+        if (!room) throw new Error("Sala nao encontrada");
+        await updateRoomLeader(input.roomCode.toUpperCase(), input.newLeaderName);
+        return { success: true, newLeader: input.newLeaderName };
       }),
   }),
 });

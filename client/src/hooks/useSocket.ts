@@ -38,6 +38,7 @@ interface UseSocketOptions {
   onReaction?: (reaction: Reaction) => void;
   onTyping?: (user: TypingUser) => void;
   onStopTyping?: (username: string) => void;
+  onLeadershipTransferred?: (newLeader: string) => void;
 }
 
 export function useSocket({
@@ -53,6 +54,7 @@ export function useSocket({
   onReaction,
   onTyping,
   onStopTyping,
+  onLeadershipTransferred,
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
 
@@ -115,12 +117,16 @@ export function useSocket({
       onStopTyping?.(u);
     });
 
+    socket.on("leadership-transferred", ({ newLeader }: { newLeader: string }) => {
+      onLeadershipTransferred?.(newLeader);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, username]);
+  }, [roomCode, username, onLeadershipTransferred]);
 
   const sendVideoSync = useCallback((state: VideoState) => {
     socketRef.current?.emit("video-sync", { roomCode, state });
@@ -146,5 +152,9 @@ export function useSocket({
     socketRef.current?.emit("stop-typing", { roomCode });
   }, [roomCode]);
 
-  return { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction, sendTyping, sendStopTyping };
+  const sendTransferLeadership = useCallback((newLeaderName: string) => {
+    socketRef.current?.emit("transfer-leadership", { roomCode, newLeaderName });
+  }, [roomCode]);
+
+  return { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction, sendTyping, sendStopTyping, sendTransferLeadership };
 }

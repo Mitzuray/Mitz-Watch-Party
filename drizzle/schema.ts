@@ -20,12 +20,17 @@ export const rooms = mysqlTable("rooms", {
   code: varchar("code", { length: 8 }).notNull().unique(),
   videoUrl: text("videoUrl"),
   hostName: varchar("hostName", { length: 128 }).notNull().default("Host"),
+  leaderName: varchar("leaderName", { length: 128 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Room = typeof rooms.$inferSelect;
 export type InsertRoom = typeof rooms.$inferInsert;
+
+export interface RoomWithLeader extends Room {
+  leaderName: string | null;
+}
 
 export const messages = mysqlTable("messages", {
   id: int("id").autoincrement().primaryKey(),

@@ -162,6 +162,13 @@ export function setupSocketIO(httpServer: HttpServer) {
       });
     });
 
+    // Transfer leadership
+    socket.on("transfer-leadership", ({ roomCode, newLeaderName }: { roomCode: string; newLeaderName: string }) => {
+      io.to(roomCode).emit("leadership-transferred", {
+        newLeader: newLeaderName,
+      });
+    });
+
     // Disconnect
     socket.on("disconnect", () => {
       if (currentRoom) {

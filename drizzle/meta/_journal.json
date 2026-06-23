@@ -15,6 +15,13 @@
       "when": 1782214914495,
       "tag": "0001_flimsy_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782217905260,
+      "tag": "0002_pretty_magneto",
+      "breakpoints": true
     }
   ]
 }

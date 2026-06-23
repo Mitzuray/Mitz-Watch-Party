@@ -110,6 +110,12 @@ export async function updateRoomVideoUrl(code: string, videoUrl: string) {
   await db.update(rooms).set({ videoUrl }).where(eq(rooms.code, code));
 }
 
+export async function updateRoomLeader(code: string, leaderName: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(rooms).set({ leaderName }).where(eq(rooms.code, code));
+}
+
 // --- Message helpers ---
 
 export async function getMessagesByRoom(roomCode: string, limit = 100) {

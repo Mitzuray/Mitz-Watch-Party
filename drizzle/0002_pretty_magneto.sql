@@ -1,0 +1,1 @@
+ALTER TABLE `rooms` ADD `leaderName` varchar(128);

@@ -33,6 +33,8 @@ export default function Room() {
   const [showReactionsPanel, setShowReactionsPanel] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [leader, setLeader] = useState<string | null>(null);
+  const isLeader = leader === username;
 
   const playerRef = useRef<VideoPlayerHandle>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -46,6 +48,13 @@ export default function Room() {
     { code: roomCode },
     { enabled: !!roomCode, retry: 1 }
   );
+
+  // Set initial leader from room data
+  useEffect(() => {
+    if (room?.leaderName) {
+      setLeader(room.leaderName);
+    }
+  }, [room?.leaderName]);
 
   // Initialize video URL from DB
   useEffect(() => {
@@ -166,7 +175,7 @@ export default function Room() {
     });
   }, []);
 
-  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction: sendReactionSocket, sendTyping, sendStopTyping } = useSocket({
+  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction: sendReactionSocket, sendTyping, sendStopTyping, sendTransferLeadership } = useSocket({
     roomCode,
     username,
     onVideoState: handleVideoState,
@@ -179,33 +188,53 @@ export default function Room() {
     onReaction: handleReaction,
     onTyping: handleTyping,
     onStopTyping: handleStopTyping,
+    onLeadershipTransferred: setLeader,
   });
 
   // Player event handlers
   const handlePlay = useCallback((currentTime: number) => {
+    if (!isLeader) {
+      toast.error("Apenas o lider pode dar play");
+      return;
+    }
     if (isSyncing) return;
     sendVideoSync({ playing: true, currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync]);
+  }, [isSyncing, sendVideoSync, isLeader]);
 
   const handlePause = useCallback((currentTime: number) => {
+    if (!isLeader) {
+      toast.error("Apenas o lider pode pausar");
+      return;
+    }
     if (isSyncing) return;
     sendVideoSync({ playing: false, currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync]);
+  }, [isSyncing, sendVideoSync, isLeader]);
 
   const handleSeek = useCallback((currentTime: number) => {
+    if (!isLeader) {
+      toast.error("Apenas o lider pode mudar o tempo do video");
+      return;
+    }
     if (isSyncing) return;
     sendVideoSync({ playing: !playerRef.current?.isPaused(), currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync]);
+  }, [isSyncing, sendVideoSync, isLeader]);
 
   const handleLoadVideo = () => {
+    if (!isLeader) {
+      toast.error("Apenas o lider pode carregar videos");
+      return;
+    }
     const url = inputUrl.trim();
     if (!url) {
-      toast.error("Cole um link de vídeo válido");
+      toast.error("Cole um link de video valido");
       return;
     }
     sendVideoUrlChange(url);
-    toast.success("Vídeo carregado para todos!");
+    toast.success("Video carregado para todos!");
   };
+
+  // Disable video controls for non-leaders
+  const videoControlsDisabled = !isLeader;
 
   const handleSendMessage = () => {
     const text = chatInput.trim();
@@ -613,8 +642,40 @@ export default function Room() {
           )}
         </button>
 
-        {/* Participants + Leave */}
+        {/* Participants + Leader + Leave */}
         <div className="flex items-center gap-3">
+          {leader && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+              style={{
+                background: "oklch(0.65 0.28 310 / 0.15)",
+                border: "1px solid oklch(0.65 0.28 310 / 0.4)",
+              }}
+            >
+              <span style={{ color: "oklch(0.65 0.28 310)" }}>
+                {isLeader ? "👑 Voce e o lider" : `👑 Lider: ${leader}`}
+              </span>
+            </div>
+          )}
+          {isLeader && (
+            <Button
+              onClick={() => {
+                const newLeader = prompt("Nome do novo lider:");
+                if (newLeader) {
+                  sendTransferLeadership(newLeader);
+                  toast.success(`Lideranca transferida para ${newLeader}`);
+                }
+              }}
+              size="sm"
+              className="h-8 font-display text-xs tracking-wider uppercase"
+              style={{
+                background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
+                boxShadow: "0 0 12px oklch(0.65 0.28 310 / 0.3)",
+              }}
+            >
+              Transferir
+            </Button>
+          )}
           <div
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
             style={{
@@ -683,9 +744,9 @@ export default function Room() {
             <VideoPlayer
               ref={playerRef}
               videoUrl={videoUrl}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onSeek={handleSeek}
+              onPlay={isLeader ? handlePlay : () => toast.error("Apenas o lider pode controlar o video")}
+              onPause={isLeader ? handlePause : () => toast.error("Apenas o lider pode controlar o video")}
+              onSeek={isLeader ? handleSeek : () => toast.error("Apenas o lider pode controlar o video")}
               isSyncing={isSyncing}
             />
             {/* Sync indicator */}

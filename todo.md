@@ -71,3 +71,14 @@
 ## Bugs Encontrados
 - [x] Google Drive: vídeos não sincronizam entre usuários (adicionado aviso sobre limitações)
 - [x] Reações: não aparecem em tempo real para outros usuários (coordenadas normalizadas ao player)
+
+
+## Sistema de Liderança (Nova Feature)
+- [x] Schema: adicionar campo `leaderName` na tabela `rooms`
+- [x] Migração SQL para adicionar `leaderName`
+- [x] tRPC: rota para transferir liderança
+- [x] WebSocket: evento transfer-leadership
+- [x] UI: mostrar quem é o líder no header com emoji 👑
+- [x] UI: botão para transferir liderança (prompt com nome)
+- [x] Desabilitar controles de vídeo para não-líderes
+- [x] Indicador visual "Digitando..." no chat com nome do usuário
