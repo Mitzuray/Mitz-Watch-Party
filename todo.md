@@ -82,3 +82,16 @@
 - [x] UI: botão para transferir liderança (prompt com nome)
 - [x] Desabilitar controles de vídeo para não-líderes
 - [x] Indicador visual "Digitando..." no chat com nome do usuário
+
+
+## Suporte a Sites Brasileiros (Nova Feature)
+- [x] Backend: instalar axios e cheerio para requisições HTTP e scraping
+- [x] Backend: criar rota tRPC extractVideo para extrair vídeo de tokyvideo.com
+- [x] Backend: criar rota tRPC extractVideo para extrair vídeo de animesonlinecc.to
+- [x] Backend: criar rota genérica de extração para outros sites
+- [x] Frontend: adicionar suporte a links de tokyvideo no VideoPlayer
+- [x] Frontend: adicionar suporte a links de animesonlinecc no VideoPlayer
+- [x] Frontend: sincronizar vídeos extraídos via WebSocket
+- [x] Frontend: chamada de extração no handleLoadVideo com loading toast
+- [x] Teste: verificar se extração funciona para tokyvideo
+- [x] Teste: verificar se extração funciona para animesonlinecc

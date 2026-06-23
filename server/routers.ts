@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { createRoom, getRoomByCode, getMessagesByRoom, updateRoomLeader } from "./db";
 import { nanoid } from "nanoid";
+import { extractVideoUrl } from "./videoExtractor";
 
 export const appRouter = router({
   system: systemRouter,
@@ -56,6 +57,16 @@ export const appRouter = router({
         if (!room) throw new Error("Sala nao encontrada");
         await updateRoomLeader(input.roomCode.toUpperCase(), input.newLeaderName);
         return { success: true, newLeader: input.newLeaderName };
+      }),
+
+    extractVideo: publicProcedure
+      .input(z.object({ url: z.string().url() }))
+      .query(async ({ input }) => {
+        const videoUrl = await extractVideoUrl(input.url);
+        if (!videoUrl) {
+          throw new Error("Nao foi possivel extrair o video deste link. Tente YouTube, Google Drive ou uma URL direta de video.");
+        }
+        return { videoUrl, originalUrl: input.url };
       }),
   }),
 });

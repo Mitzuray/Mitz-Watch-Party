@@ -219,7 +219,7 @@ export default function Room() {
     sendVideoSync({ playing: !playerRef.current?.isPaused(), currentTime, updatedAt: Date.now() });
   }, [isSyncing, sendVideoSync, isLeader]);
 
-  const handleLoadVideo = () => {
+  const handleLoadVideo = async () => {
     if (!isLeader) {
       toast.error("Apenas o lider pode carregar videos");
       return;
@@ -229,8 +229,23 @@ export default function Room() {
       toast.error("Cole um link de video valido");
       return;
     }
-    sendVideoUrlChange(url);
-    toast.success("Video carregado para todos!");
+
+    // Check if URL needs extraction (tokyvideo, animesonline, etc)
+    if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
+      toast.loading("Extraindo video...");
+      try {
+        const result = await fetch(`/api/trpc/rooms.extractVideo?input=${encodeURIComponent(JSON.stringify({ url }))}`).then(r => r.json());
+        if (result.error) throw new Error(result.error.message);
+        sendVideoUrlChange(result.result.data.videoUrl);
+        toast.success("Video extraido e carregado para todos!");
+      } catch (error) {
+        toast.error("Erro ao extrair video. Tente YouTube ou URL direta.");
+        console.error(error);
+      }
+    } else {
+      sendVideoUrlChange(url);
+      toast.success("Video carregado para todos!");
+    }
   };
 
   // Disable video controls for non-leaders

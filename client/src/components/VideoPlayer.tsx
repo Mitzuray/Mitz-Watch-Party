@@ -16,12 +16,13 @@ interface VideoPlayerProps {
   isSyncing?: boolean;
 }
 
-type VideoType = "youtube" | "drive" | "direct" | "unknown";
+type VideoType = "youtube" | "drive" | "direct" | "extracted" | "unknown";
 
 function detectVideoType(url: string): VideoType {
   if (!url) return "unknown";
   if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
   if (url.includes("drive.google.com")) return "drive";
+  if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) return "extracted";
   if (url.match(/\.(mp4|webm|ogg|mkv|avi|mov)(\?.*)?$/i)) return "direct";
   return "direct";
 }
