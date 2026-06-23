@@ -5,6 +5,7 @@ const REACTIONS = ["❤️", "😂", "🔥", "👏", "🎉", "😍"];
 
 interface ReactionPickerProps {
   onReact: (emoji: string, x: number, y: number) => void;
+  playerRef?: React.RefObject<HTMLDivElement>;
 }
 
 export default function ReactionPicker({ onReact }: ReactionPickerProps) {
@@ -28,9 +29,11 @@ export default function ReactionPicker({ onReact }: ReactionPickerProps) {
 
   const handleReaction = (emoji: string) => {
     if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
+      // Get button position
+      const buttonRect = buttonRef.current.getBoundingClientRect();
+      const x = buttonRect.left + buttonRect.width / 2;
+      const y = buttonRect.top + buttonRect.height / 2;
+      // Send absolute coordinates - Room.tsx will normalize them
       onReact(emoji, x, y);
     }
     setIsOpen(false);

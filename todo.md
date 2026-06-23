@@ -66,3 +66,8 @@
 - [x] Componente TypingIndicator com animação de pontos
 - [x] Mostrar "X está digitando..." no chat
 - [x] Parar de enviar typing quando usuário para de digitar (timeout)
+
+
+## Bugs Encontrados
+- [x] Google Drive: vídeos não sincronizam entre usuários (adicionado aviso sobre limitações)
+- [x] Reações: não aparecem em tempo real para outros usuários (coordenadas normalizadas ao player)

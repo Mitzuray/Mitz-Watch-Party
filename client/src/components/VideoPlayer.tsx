@@ -226,13 +226,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     if (videoType === "drive") {
       return (
-        <iframe
-          src={driveEmbedUrl ?? ""}
-          className="w-full h-full border-0"
-          allow="autoplay"
-          allowFullScreen
-          title="Google Drive Video"
-        />
+        <div className="w-full h-full flex flex-col">
+          <div className="bg-yellow-900/30 border border-yellow-700/50 px-3 py-2 text-xs text-yellow-200">
+            ⚠️ Google Drive: Sincronização limitada. Use YouTube ou URL direta para melhor experiência.
+          </div>
+          <iframe
+            src={driveEmbedUrl ?? ""}
+            className="flex-1 border-0"
+            allow="autoplay"
+            allowFullScreen
+            title="Google Drive Video"
+          />
+        </div>
       );
     }
 

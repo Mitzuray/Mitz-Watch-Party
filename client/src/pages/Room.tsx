@@ -39,6 +39,7 @@ export default function Room() {
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionCounterRef = useRef(0);
   const lastTypingTimeRef = useRef(0);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch room data
   const { data: room, isLoading, error } = trpc.rooms.get.useQuery(
@@ -165,7 +166,7 @@ export default function Room() {
     });
   }, []);
 
-  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction, sendTyping, sendStopTyping } = useSocket({
+  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction: sendReactionSocket, sendTyping, sendStopTyping } = useSocket({
     roomCode,
     username,
     onVideoState: handleVideoState,
@@ -233,7 +234,19 @@ export default function Room() {
   };
 
   // Get typing users array for rendering
-  const typingUsersArray = Array.from(typingUsers)
+  const typingUsersArray = Array.from(typingUsers);
+
+  // Normalize and send reaction
+  const sendReaction = useCallback((emoji: string, x: number, y: number) => {
+    if (playerContainerRef.current) {
+      const rect = playerContainerRef.current.getBoundingClientRect();
+      const normalizedX = Math.max(0, Math.min(x - rect.left, rect.width));
+      const normalizedY = Math.max(0, Math.min(y - rect.top, rect.height));
+      sendReactionSocket(emoji, normalizedX, normalizedY);
+    } else {
+      sendReactionSocket(emoji, x, y);
+    }
+  }, [sendReactionSocket])
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode).then(() => {
@@ -666,7 +679,7 @@ export default function Room() {
           </div>
 
           {/* Video player */}
-          <div className="flex-1 overflow-hidden bg-black relative">
+          <div ref={playerContainerRef} className="flex-1 overflow-hidden bg-black relative">
             <VideoPlayer
               ref={playerRef}
               videoUrl={videoUrl}
