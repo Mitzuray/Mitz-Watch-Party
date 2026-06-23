@@ -1,11 +1,10 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, rooms, messages, InsertRoom, InsertMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -85,8 +84,42 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// --- Room helpers ---
+
+export async function createRoom(data: InsertRoom) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(rooms).values(data);
+  const result = await db.select().from(rooms).where(eq(rooms.code, data.code)).limit(1);
+  return result[0];
+}
+
+export async function getRoomByCode(code: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(rooms).where(eq(rooms.code, code)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateRoomVideoUrl(code: string, videoUrl: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(rooms).set({ videoUrl }).where(eq(rooms.code, code));
+}
+
+// --- Message helpers ---
+
+export async function getMessagesByRoom(roomCode: string, limit = 100) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(messages).where(eq(messages.roomCode, roomCode)).limit(limit);
+}
+
+export async function insertMessage(data: InsertMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(messages).values(data);
+}

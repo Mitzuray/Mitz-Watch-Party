@@ -1,28 +1,55 @@
+import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { createRoom, getRoomByCode, getMessagesByRoom } from "./db";
+import { nanoid } from "nanoid";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  rooms: router({
+    create: publicProcedure
+      .input(z.object({ hostName: z.string().min(1).max(64) }))
+      .mutation(async ({ input }) => {
+        // Generate unique 6-char alphanumeric code
+        let code: string;
+        let attempts = 0;
+        do {
+          code = nanoid(6).toUpperCase().replace(/[^A-Z0-9]/g, "X").slice(0, 6);
+          attempts++;
+          if (attempts > 20) throw new Error("Could not generate unique room code");
+          const existing = await getRoomByCode(code);
+          if (!existing) break;
+        } while (true);
+
+        const room = await createRoom({ code, hostName: input.hostName });
+        return room;
+      }),
+
+    get: publicProcedure
+      .input(z.object({ code: z.string().min(1).max(8) }))
+      .query(async ({ input }) => {
+        const room = await getRoomByCode(input.code.toUpperCase());
+        if (!room) throw new Error("Sala não encontrada");
+        return room;
+      }),
+
+    messages: publicProcedure
+      .input(z.object({ roomCode: z.string().min(1).max(8) }))
+      .query(async ({ input }) => {
+        return getMessagesByRoom(input.roomCode.toUpperCase(), 100);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
