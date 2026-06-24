@@ -22,6 +22,13 @@
       "when": 1782217905260,
       "tag": "0002_pretty_magneto",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1782280406112,
+      "tag": "0003_misty_prima",
+      "breakpoints": true
     }
   ]
 }

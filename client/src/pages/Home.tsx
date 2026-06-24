@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Tv2, Users, Zap, Radio } from "lucide-react";
+import { Tv2, Users, Zap, Radio, Settings, LogOut } from "lucide-react";
 import RaveParticles from "@/components/RaveParticles";
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const { user, logout, isAuthenticated } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [hostName, setHostName] = useState("");
@@ -35,6 +37,14 @@ export default function Home() {
     createRoom.mutate({ hostName: hostName.trim() });
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      toast.error("Erro ao fazer logout");
+    }
+  };
+
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();
     const name = joinName.trim();
@@ -51,8 +61,43 @@ export default function Home() {
   };
 
   return (
-    <div className="rave-bg min-h-screen relative flex flex-col items-center justify-center overflow-hidden">
+    <div className="rave-bg min-h-screen relative flex flex-col overflow-hidden">
       <RaveParticles />
+
+      {/* Header */}
+      {isAuthenticated && (
+        <div className="relative z-20 border-b border-purple-500/30 bg-black/80 backdrop-blur-sm px-6 py-3">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
+            <div className="flex items-center gap-2">
+              <Radio className="w-5 h-5 text-pink-500" />
+              <span className="font-display text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                MITZ WATCH
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">👤 {user?.name || user?.email || "Usuário"}</span>
+              <Button
+                onClick={() => navigate("/settings")}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span className="text-xs">Integrações</span>
+              </Button>
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="text-xs">Sair</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ambient glow orbs */}
       <div
@@ -78,7 +123,7 @@ export default function Home() {
       />
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center text-center px-4 max-w-2xl w-full">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-4 max-w-2xl w-full">
         {/* Logo */}
         <div className="mb-2 flex items-center gap-3">
           <Radio className="w-8 h-8 text-[oklch(0.65_0.28_310)] animate-neon-pulse" />
