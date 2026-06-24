@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -175,6 +175,8 @@ export default function Room() {
   }, [isLeader, sendVideoSync]);
 
   // Load video (leader only)
+  const utils = trpc.useUtils();
+
   const handleLoadVideo = async () => {
     if (!isLeader) {
       toast.error("Apenas o lider pode carregar videos");
@@ -192,22 +194,10 @@ export default function Room() {
     if (url.includes("drive.google.com")) {
       const toastId = toast.loading("Extraindo video do Google Drive...");
       try {
-        const input = { url };
-        const response = await fetch(
-          `/api/trpc/rooms.extractGoogleDriveVideo?input=${encodeURIComponent(JSON.stringify(input))}`
-        );
+        // Call the tRPC query directly using utils.fetch
+        const result = await utils.rooms.extractGoogleDriveVideo.fetch({ url });
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error.message || "Erro ao extrair video do Drive");
-        }
-        
-        const videoUrl = data.result?.data?.videoUrl;
+        const videoUrl = result?.videoUrl;
         if (!videoUrl) {
           throw new Error("URL de video nao encontrada na resposta");
         }
@@ -228,23 +218,10 @@ export default function Room() {
     else if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
       const toastId = toast.loading("Extraindo video...");
       try {
-        // Call tRPC query correctly
-        const input = { url };
-        const response = await fetch(
-          `/api/trpc/rooms.extractVideo?input=${encodeURIComponent(JSON.stringify(input))}`
-        );
+        // Call the tRPC query directly using utils.fetch
+        const result = await utils.rooms.extractVideo.fetch({ url });
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error.message || "Erro ao extrair video");
-        }
-        
-        const videoUrl = data.result?.data?.videoUrl;
+        const videoUrl = result?.videoUrl;
         if (!videoUrl) {
           throw new Error("URL de video nao encontrada na resposta");
         }
@@ -285,62 +262,32 @@ export default function Room() {
     }
   }, [sendTyping]);
 
-  // Get typing users array for rendering
-  const typingUsersArray = typingUsers;
-
-  // Send reaction when user clicks emoji button on a message
-  const handleReaction = useCallback((emoji: string) => {
-    // Reactions on messages don't need position coordinates
-    sendReactionSocket(emoji, 0, 0);
-  }, [sendReactionSocket])
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(roomCode).then(() => {
-      setCodeCopied(true);
-      toast.success("Código copiado!");
-      setTimeout(() => setCodeCopied(false), 2000);
-    });
+  const handleTransferLeadership = () => {
+    const newLeader = prompt("Digite o nome do novo lider:");
+    if (newLeader && newLeader.trim()) {
+      sendTransferLeadership(newLeader.trim());
+    }
   };
-
-  const handleLeave = () => {
-    navigate("/");
-  };
-
-  // Fullscreen and escape key handling removed
-
-  // Cleanup typing timeouts on unmount
-  useEffect(() => {
-    return () => {
-      typingTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
-      typingTimeoutRef.current.clear();
-    };
-  }, [])
 
   if (isLoading) {
     return (
-      <div className="rave-bg min-h-screen flex items-center justify-center">
-        <RaveParticles />
-        <div className="relative z-10 text-center space-y-4">
-          <Radio className="w-12 h-12 mx-auto animate-spin" style={{ color: "oklch(0.65 0.28 310)" }} />
-          <p className="font-display text-lg tracking-widest" style={{ color: "oklch(0.65 0.28 310)" }}>
-            CARREGANDO SALA...
-          </p>
+      <div className="w-full h-screen flex items-center justify-center bg-black">
+        <div className="text-center space-y-4">
+          <div className="text-5xl">🎬</div>
+          <p className="text-muted-foreground">Carregando sala...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !room) {
+  if (error) {
     return (
-      <div className="rave-bg min-h-screen flex items-center justify-center">
-        <RaveParticles />
-        <div className="relative z-10 text-center space-y-4">
-          <p className="font-display text-2xl" style={{ color: "oklch(0.70 0.28 0)" }}>
-            SALA NÃO ENCONTRADA
-          </p>
-          <p className="text-muted-foreground">O código "{roomCode}" não existe.</p>
+      <div className="w-full h-screen flex items-center justify-center bg-black">
+        <div className="text-center space-y-4">
+          <div className="text-5xl">❌</div>
+          <p className="text-red-500">Sala nao encontrada</p>
           <Button onClick={() => navigate("/")} variant="outline">
-            Voltar ao início
+            Voltar
           </Button>
         </div>
       </div>
@@ -348,297 +295,159 @@ export default function Room() {
   }
 
   return (
-    <div className="rave-bg min-h-screen flex flex-col overflow-hidden" style={{ height: "100dvh" }}>
+    <div className="w-full h-screen flex flex-col bg-black text-foreground overflow-hidden">
       <RaveParticles />
-
+      
       {/* Header */}
-      <header
-        className="relative z-10 flex items-center justify-between px-4 py-2.5 shrink-0"
-        style={{
-          background: "oklch(0.08 0.04 280 / 0.95)",
-          borderBottom: "1px solid oklch(0.65 0.28 310 / 0.25)",
-          backdropFilter: "blur(12px)",
-        }}
-      >
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <Radio className="w-5 h-5 animate-neon-pulse" style={{ color: "oklch(0.65 0.28 310)" }} />
-          <span className="font-display font-bold text-sm tracking-[0.2em] hidden sm:block" style={{ color: "oklch(0.65 0.28 310)" }}>
-            MITZ WATCH
-          </span>
-        </div>
-
-        {/* Room code */}
-        <button
-          onClick={handleCopyCode}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all hover:scale-105 active:scale-95"
-          style={{
-            background: "oklch(0.12 0.05 310 / 0.8)",
-            border: "1px solid oklch(0.65 0.28 310 / 0.4)",
-          }}
-        >
-          <span className="font-display font-bold text-sm tracking-[0.3em]" style={{ color: "oklch(0.65 0.28 310)" }}>
-            {roomCode}
-          </span>
-          {codeCopied ? (
-            <CheckCircle2 className="w-4 h-4" style={{ color: "oklch(0.80 0.18 200)" }} />
-          ) : (
-            <Copy className="w-4 h-4" style={{ color: "oklch(0.65 0.28 310 / 0.7)" }} />
-          )}
-        </button>
-
-        {/* Participants + Leader + Leave */}
-        <div className="flex items-center gap-3">
-          {leader && (
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
-              style={{
-                background: "oklch(0.65 0.28 310 / 0.15)",
-                border: "1px solid oklch(0.65 0.28 310 / 0.4)",
-              }}
-            >
-              <span style={{ color: "oklch(0.65 0.28 310)" }}>
-                {isLeader ? "👑 Voce e o lider" : `👑 Lider: ${leader}`}
-              </span>
+      <div className="relative z-10 border-b border-purple-500/30 bg-black/80 backdrop-blur-sm px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex-shrink-0">
+              <Radio className="w-5 h-5 text-pink-500" />
             </div>
-          )}
+            <div className="min-w-0 flex-1">
+              <h1 className="font-display text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 truncate">
+                MITZ WATCH
+              </h1>
+              <p className="text-xs text-muted-foreground truncate">
+                Sala: {roomCode}
+              </p>
+            </div>
+          </div>
+
+          {/* Leader indicator */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">👑</span>
+            <span className="text-cyan-400 font-mono truncate max-w-[150px]">{leader}</span>
+          </div>
+
+          {/* Participants count */}
+          <div className="flex items-center gap-1 text-xs">
+            <Users className="w-4 h-4 text-cyan-400" />
+            <span className="text-cyan-400 font-mono">{participantCount}</span>
+          </div>
+
+          {/* Copy code button */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard.writeText(roomCode);
+              setCodeCopied(true);
+              setTimeout(() => setCodeCopied(false), 2000);
+            }}
+            className="gap-1 text-xs"
+          >
+            <Copy className="w-3 h-3" />
+            {codeCopied ? "Copiado!" : "Copiar"}
+          </Button>
+
+          {/* Transfer leadership button */}
           {isLeader && (
             <Button
-              onClick={() => {
-                const newLeader = prompt("Nome do novo lider:");
-                if (newLeader) {
-                  sendTransferLeadership(newLeader);
-                  toast.success(`Lideranca transferida para ${newLeader}`);
-                }
-              }}
               size="sm"
-              className="h-8 font-display text-xs tracking-wider uppercase"
-              style={{
-                background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
-                boxShadow: "0 0 12px oklch(0.65 0.28 310 / 0.3)",
-              }}
+              variant="outline"
+              onClick={handleTransferLeadership}
+              className="gap-1 text-xs"
             >
+              <Radio className="w-3 h-3" />
               Transferir
             </Button>
           )}
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-            style={{
-              background: "oklch(0.12 0.04 200 / 0.8)",
-              border: "1px solid oklch(0.80 0.18 200 / 0.3)",
-            }}
-          >
-            <Users className="w-4 h-4" style={{ color: "oklch(0.80 0.18 200)" }} />
-            <span className="font-display text-sm font-bold" style={{ color: "oklch(0.80 0.18 200)" }}>
-              {participantCount}
-            </span>
-          </div>
+
+          {/* Leave button */}
           <Button
-            onClick={handleLeave}
-            variant="outline"
             size="sm"
-            className="h-8 font-display text-xs tracking-wider uppercase"
-            style={{
-              background: "oklch(0.12 0.04 0 / 0.8)",
-              border: "1px solid oklch(0.70 0.28 0 / 0.4)",
-              color: "oklch(0.70 0.28 0)",
-            }}
+            variant="outline"
+            onClick={() => navigate("/")}
+            className="gap-1 text-xs text-red-500 hover:text-red-400"
           >
-            <LogOut className="w-3.5 h-3.5 mr-1" />
+            <LogOut className="w-3 h-3" />
             Sair
           </Button>
         </div>
-      </header>
+      </div>
 
-      {/* Main layout - NOVO: Player em cima, chat embaixo */}
-      <div className="relative z-10 flex flex-col flex-1 overflow-hidden">
-        {/* Video player section */}
-        <div className="flex flex-col flex-1 overflow-hidden">
-          {/* URL input bar */}
-          <div
-            className="flex items-center gap-2 px-3 py-2 shrink-0"
-            style={{
-              background: "oklch(0.08 0.03 280 / 0.9)",
-              borderBottom: "1px solid oklch(0.20 0.05 280 / 0.5)",
-            }}
-          >
-            <Link2 className="w-4 h-4 shrink-0" style={{ color: "oklch(0.80 0.18 200 / 0.7)" }} />
-            <Input
-              placeholder={isLeader ? "Cole aqui o link do YouTube, Google Drive ou vídeo direto..." : "Apenas o lider pode carregar videos..."}
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLoadVideo()}
-              disabled={!isLeader}
-              className="h-8 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 disabled:opacity-50"
-              style={{ color: "oklch(0.90 0.02 280)" }}
-            />
-            <Button
-              onClick={handleLoadVideo}
-              disabled={!isLeader}
-              size="sm"
-              className="h-8 shrink-0 font-display text-xs tracking-wider uppercase px-3 disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
-                boxShadow: "0 0 12px oklch(0.65 0.28 310 / 0.3)",
-              }}
-            >
-              Carregar
-            </Button>
-          </div>
-
-          {/* Video player */}
-          <div ref={playerContainerRef} className="flex-1 overflow-hidden bg-black relative">
-            <VideoPlayer
-              ref={playerRef}
-              videoUrl={videoUrl}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onSeek={handleSeek}
-              isSyncing={isSyncing}
-            />
-            {/* Sync indicator */}
-            {isSyncing && (
-              <div
-                className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-display tracking-wider"
-                style={{
-                  background: "oklch(0.65 0.28 310 / 0.9)",
-                  color: "white",
-                  boxShadow: "0 0 12px oklch(0.65 0.28 310 / 0.5)",
-                }}
-              >
-                ⚡ SINCRONIZANDO
-              </div>
-            )}
-            {/* Reactions now appear on chat messages only */}
-          </div>
+      {/* Main content */}
+      <div className="relative z-10 flex-1 flex flex-col gap-3 p-3 min-h-0 overflow-hidden">
+        {/* Video player */}
+        <div ref={playerContainerRef} className="flex-1 min-h-0 rounded-lg overflow-hidden bg-black/40 border border-purple-500/20">
+          <VideoPlayer
+            ref={playerRef}
+            videoUrl={videoUrl}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onSeek={handleSeek}
+            isSyncing={isSyncing}
+          />
         </div>
 
-        {/* Chat section - NOVO: Embaixo do player */}
-        <div
-          className="h-48 flex flex-col shrink-0 overflow-hidden"
-          style={{
-            background: "oklch(0.08 0.03 280 / 0.97)",
-            borderTop: "1px solid oklch(0.65 0.28 310 / 0.2)",
-          }}
-        >
-          {/* Chat header */}
-          <div
-            className="px-4 py-2 shrink-0 flex items-center gap-2"
-            style={{ borderBottom: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
+        {/* Video URL input */}
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="Cole um link de YouTube, Google Drive ou URL de video..."
+            value={inputUrl}
+            onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLoadVideo()}
+            disabled={!isLeader}
+            className="text-xs"
+          />
+          <Button
+            onClick={handleLoadVideo}
+            disabled={!isLeader}
+            size="sm"
+            className="gap-1 whitespace-nowrap"
           >
-            <div
-              className="w-2 h-2 rounded-full animate-neon-pulse"
-              style={{ background: "oklch(0.65 0.28 310)", boxShadow: "0 0 6px oklch(0.65 0.28 310)" }}
-            />
-            <span className="font-display text-xs tracking-widest" style={{ color: "oklch(0.65 0.28 310)" }}>
-              CHAT AO VIVO
-            </span>
-          </div>
+            <Link2 className="w-3 h-3" />
+            Carregar
+          </Button>
+        </div>
+      </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 text-xs">
-            {chatMessages.length === 0 && (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground text-xs">Nenhuma mensagem ainda.</p>
+      {/* Chat panel */}
+      <div className="relative z-10 border-t border-purple-500/30 bg-black/80 backdrop-blur-sm h-48 flex flex-col gap-2 p-3">
+        {/* Chat messages */}
+        <div className="flex-1 overflow-y-auto space-y-2 text-xs">
+          {!chatHistoryLoaded && (
+            <div className="text-center text-muted-foreground py-2">Carregando chat...</div>
+          )}
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-cyan-400 flex-shrink-0">{msg.username}</span>
+                <span className="text-muted-foreground text-xs flex-shrink-0">
+                  {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
-            )}
-            {chatMessages.map((msg, i) => {
-              const isSystem = msg.username === "sistema";
-              const isMe = msg.username === username;
+              <div className="text-foreground break-words">{msg.text}</div>
 
-              if (isSystem) {
-                return (
-                  <div key={i} className="text-center">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full"
-                      style={{
-                        color: "oklch(0.80 0.18 200 / 0.8)",
-                        background: "oklch(0.80 0.18 200 / 0.08)",
-                      }}
-                    >
-                      {msg.text}
-                    </span>
-                  </div>
-                );
-              }
-
-              return (
-                <div key={i} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                  <span
-                    className="text-[9px] font-medium mb-0.5 px-1"
-                    style={{
-                      color: isMe ? "oklch(0.65 0.28 310)" : "oklch(0.70 0.28 0)",
-                    }}
-                  >
-                    {isMe ? "Você" : msg.username}
-                  </span>
-                  <div
-                    className="max-w-[85%] px-2 py-1 rounded-lg text-xs break-words"
-                    style={
-                      isMe
-                        ? {
-                            background: "oklch(0.55 0.28 310 / 0.25)",
-                            border: "1px solid oklch(0.65 0.28 310 / 0.3)",
-                            color: "oklch(0.95 0.01 280)",
-                            borderBottomRightRadius: "2px",
-                          }
-                        : {
-                            background: "oklch(0.12 0.04 280)",
-                            border: "1px solid oklch(0.25 0.06 280 / 0.5)",
-                            color: "oklch(0.90 0.02 280)",
-                            borderBottomLeftRadius: "2px",
-                          }
-                    }
-                  >
-                    {msg.text}
-                  </div>
-                </div>
-              );
-            })}
-            {/* Typing indicators */}
-            {typingUsersArray.map((typingUsername) => (
-              <TypingIndicator key={`typing-${typingUsername}`} username={typingUsername} />
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat input */}
-          <div
-            className="px-3 py-2 shrink-0"
-            style={{ borderTop: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
-          >
-            <div className="flex gap-2">
-              <Input
-                placeholder="Msg..."
-                value={chatInput}
-                onChange={(e) => handleChatInputChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                className="h-7 text-xs"
-                style={{
-                  background: "oklch(0.12 0.04 280)",
-                  border: "1px solid oklch(0.65 0.28 310 / 0.25)",
-                  color: "oklch(0.95 0.01 280)",
-                }}
-                maxLength={500}
-              />
-              <Button
-                onClick={handleSendMessage}
-                size="sm"
-                className="h-7 w-7 p-0 shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
-                  boxShadow: "0 0 10px oklch(0.65 0.28 310 / 0.3)",
-                }}
-              >
-                <Send className="w-3 h-3" />
-              </Button>
             </div>
-          </div>
+          ))}
+          {typingUsers.map((user) => (
+            <TypingIndicator key={user} username={user} />
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Chat input */}
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="Digite uma mensagem..."
+            value={chatInput}
+            onChange={(e) => handleChatInputChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+            className="text-xs"
+          />
+          <Button
+            onClick={handleSendMessage}
+            size="sm"
+            className="gap-1 whitespace-nowrap"
+          >
+            <Send className="w-3 h-3" />
+            Enviar
+          </Button>
         </div>
       </div>
     </div>
