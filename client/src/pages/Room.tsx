@@ -188,8 +188,44 @@ export default function Room() {
 
     const url = inputUrl.trim();
 
+    // Check if URL is Google Drive
+    if (url.includes("drive.google.com")) {
+      const toastId = toast.loading("Extraindo video do Google Drive...");
+      try {
+        const input = { url };
+        const response = await fetch(
+          `/api/trpc/rooms.extractGoogleDriveVideo?input=${encodeURIComponent(JSON.stringify(input))}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error.message || "Erro ao extrair video do Drive");
+        }
+        
+        const videoUrl = data.result?.data?.videoUrl;
+        if (!videoUrl) {
+          throw new Error("URL de video nao encontrada na resposta");
+        }
+        
+        sendVideoUrlChange(videoUrl);
+        setInputUrl("");
+        toast.success("Video do Drive extraido e carregado para todos!", { id: toastId });
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
+        toast.error(
+          `Erro ao extrair video do Google Drive: ${errorMsg}. Verifique se o arquivo eh um video e se esta compartilhado publicamente.`,
+          { id: toastId, duration: 5000 }
+        );
+        console.error("[GoogleDriveExtraction]", error);
+      }
+    }
     // Check if URL needs extraction (tokyvideo, animesonline, etc)
-    if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
+    else if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
       const toastId = toast.loading("Extraindo video...");
       try {
         // Call tRPC query correctly
