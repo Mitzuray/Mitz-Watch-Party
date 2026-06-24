@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default function Room() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showChatInFullscreen, setShowChatInFullscreen] = useState(false);
   const [showReactionsPanel, setShowReactionsPanel] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [leader, setLeader] = useState<string | null>(null);
   const isLeader = leader === username;
@@ -49,186 +49,141 @@ export default function Room() {
     { enabled: !!roomCode, retry: 1 }
   );
 
-  // Set initial leader from room data
+  // Socket setup
+  const {
+    sendVideoSync,
+    sendVideoUrlChange,
+    sendChatMessage,
+    sendReaction: sendReactionSocket,
+    sendTyping,
+    sendStopTyping,
+    sendTransferLeadership,
+  } = useSocket({
+    roomCode,
+    username,
+    onVideoState: (state: VideoState) => {
+      if (isSyncing) return;
+      handleVideoState(state);
+    },
+    onVideoUrlChange: (url: string) => {
+      setVideoUrl(url);
+    },
+    onChatMessage: (msg: ChatMessage) => {
+      setChatMessages((prev) => [...prev, msg]);
+    },
+    onParticipantsUpdate: (count: number) => {
+      setParticipantCount(count);
+    },
+    onReaction: (reaction: Reaction) => {
+      const key = `${reactionCounterRef.current++}`;
+      setReactions((prev) => [...prev, { ...reaction, key }]);
+    },
+    onTyping: (typingUser: TypingUser) => {
+      setTypingUsers((prev) => {
+        if (prev.includes(typingUser.username)) return prev;
+        return [...prev, typingUser.username];
+      });
+      
+      const existingTimeout = typingTimeoutRef.current.get(typingUser.username);
+      if (existingTimeout) clearTimeout(existingTimeout);
+      
+      const timeout = setTimeout(() => {
+        setTypingUsers((prev) => prev.filter(u => u !== typingUser.username));
+        typingTimeoutRef.current.delete(typingUser.username);
+      }, 3000);
+      
+      typingTimeoutRef.current.set(typingUser.username, timeout);
+    },
+    onLeadershipTransferred: (newLeader: string) => {
+      setLeader(newLeader);
+      if (newLeader === username) {
+        toast.success("Voce agora eh o lider!");
+      } else {
+        toast.info(`${newLeader} eh agora o lider`);
+      }
+    },
+  });
+
+  // Initialize leader from room data
   useEffect(() => {
     if (room?.leaderName) {
       setLeader(room.leaderName);
     }
   }, [room?.leaderName]);
 
-  // Initialize video URL from DB
+  // Initialize video URL from room
   useEffect(() => {
-    if (room?.videoUrl && !videoUrl) {
+    if (room?.videoUrl) {
       setVideoUrl(room.videoUrl);
-      setInputUrl(room.videoUrl);
     }
-  }, [room]);
+  }, [room?.videoUrl]);
 
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  }, [chatMessages, typingUsers]);
 
-  // Handle incoming video state from socket
+  // Handle video state sync
   const handleVideoState = useCallback((state: VideoState) => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    setIsSyncing(true);
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-
-    const currentTime = player.getCurrentTime();
-    const timeDiff = Math.abs(currentTime - state.currentTime);
-
-    // Only seek if difference > 2 seconds to avoid micro-jitter
-    if (timeDiff > 2) {
-      player.seekTo(state.currentTime);
+    if (!playerRef.current) return;
+    
+    const timeDiff = Math.abs((playerRef.current.getCurrentTime?.() || 0) - state.currentTime);
+    
+    // Only sync if time difference is significant (>1 second)
+    if (timeDiff > 1) {
+      playerRef.current.seekTo?.(state.currentTime);
     }
-
-    if (state.playing && player.isPaused()) {
-      player.play();
-    } else if (!state.playing && !player.isPaused()) {
-      player.pause();
+    
+    const isPlaying = !playerRef.current.isPaused?.();
+    if (isPlaying !== state.playing) {
+      if (state.playing) {
+        playerRef.current.play?.();
+      } else {
+        playerRef.current.pause?.();
+      }
     }
-
-    syncTimeoutRef.current = setTimeout(() => {
-      setIsSyncing(false);
-    }, 500);
   }, []);
 
-  const handleVideoUrlChange = useCallback((url: string) => {
-    setVideoUrl(url);
-    setInputUrl(url);
-  }, []);
-
-  const handleChatMessage = useCallback((msg: ChatMessage) => {
-    setChatMessages((prev) => [...prev, msg]);
-  }, []);
-
-  const handleChatHistory = useCallback((msgs: ChatMessage[]) => {
-    setChatMessages(msgs);
-  }, []);
-
-  const handleParticipantsUpdate = useCallback((count: number) => {
-    setParticipantCount(count);
-  }, []);
-
-  const handleUserJoined = useCallback((name: string) => {
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        username: "sistema",
-        text: `✨ ${name} entrou na sala`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  }, []);
-
-  const handleUserLeft = useCallback((name: string) => {
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        username: "sistema",
-        text: `👋 ${name} saiu da sala`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  }, []);
-
-  const handleReaction = useCallback((reaction: Reaction) => {
-    const key = `${reaction.id}-${reactionCounterRef.current++}`;
-    setReactions((prev) => [...prev, { ...reaction, key }]);
-  }, []);
-
-  const handleTyping = useCallback((user: TypingUser) => {
-    setTypingUsers((prev) => {
-      const updated = new Set(prev);
-      updated.add(user.username);
-      return updated;
-    });
-    
-    // Clear existing timeout for this user
-    const existingTimeout = typingTimeoutRef.current.get(user.username);
-    if (existingTimeout) clearTimeout(existingTimeout);
-    
-    // Set new timeout to remove user from typing list after 3 seconds
-    const timeout = setTimeout(() => {
-      setTypingUsers((prev) => {
-        const updated = new Set(prev);
-        updated.delete(user.username);
-        return updated;
-      });
-      typingTimeoutRef.current.delete(user.username);
-    }, 3000);
-    
-    typingTimeoutRef.current.set(user.username, timeout);
-  }, []);
-
-  const handleStopTyping = useCallback((username: string) => {
-    const timeout = typingTimeoutRef.current.get(username);
-    if (timeout) clearTimeout(timeout);
-    typingTimeoutRef.current.delete(username);
-    setTypingUsers((prev) => {
-      const updated = new Set(prev);
-      updated.delete(username);
-      return updated;
-    });
-  }, []);
-
-  const { sendVideoSync, sendVideoUrlChange, sendChatMessage, sendReaction: sendReactionSocket, sendTyping, sendStopTyping, sendTransferLeadership } = useSocket({
-    roomCode,
-    username,
-    onVideoState: handleVideoState,
-    onVideoUrlChange: handleVideoUrlChange,
-    onChatMessage: handleChatMessage,
-    onChatHistory: handleChatHistory,
-    onParticipantsUpdate: handleParticipantsUpdate,
-    onUserJoined: handleUserJoined,
-    onUserLeft: handleUserLeft,
-    onReaction: handleReaction,
-    onTyping: handleTyping,
-    onStopTyping: handleStopTyping,
-    onLeadershipTransferred: setLeader,
-  });
-
-  // Player event handlers
-  const handlePlay = useCallback((currentTime: number) => {
+  // Leader-only controls
+  const handlePlay = useCallback(() => {
     if (!isLeader) {
-      toast.error("Apenas o lider pode dar play");
+      toast.error("Apenas o lider pode controlar o video");
       return;
     }
-    if (isSyncing) return;
+    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
     sendVideoSync({ playing: true, currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync, isLeader]);
+  }, [isLeader, sendVideoSync]);
 
-  const handlePause = useCallback((currentTime: number) => {
+  const handlePause = useCallback(() => {
     if (!isLeader) {
-      toast.error("Apenas o lider pode pausar");
+      toast.error("Apenas o lider pode controlar o video");
       return;
     }
-    if (isSyncing) return;
+    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
     sendVideoSync({ playing: false, currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync, isLeader]);
+  }, [isLeader, sendVideoSync]);
 
-  const handleSeek = useCallback((currentTime: number) => {
+  const handleSeek = useCallback((time: number) => {
     if (!isLeader) {
-      toast.error("Apenas o lider pode mudar o tempo do video");
+      toast.error("Apenas o lider pode controlar o video");
       return;
     }
-    if (isSyncing) return;
-    sendVideoSync({ playing: !playerRef.current?.isPaused(), currentTime, updatedAt: Date.now() });
-  }, [isSyncing, sendVideoSync, isLeader]);
+    sendVideoSync({ playing: !playerRef.current?.isPaused?.(), currentTime: time, updatedAt: Date.now() });
+  }, [isLeader, sendVideoSync]);
 
+  // Load video (leader only)
   const handleLoadVideo = async () => {
     if (!isLeader) {
       toast.error("Apenas o lider pode carregar videos");
       return;
     }
-    const url = inputUrl.trim();
-    if (!url) {
+
+    if (!inputUrl.trim()) {
       toast.error("Cole um link de video valido");
       return;
     }
+
+    const url = inputUrl.trim();
 
     // Check if URL needs extraction (tokyvideo, animesonline, etc)
     if (url.includes("tokyvideo.com") || url.includes("animesonlinecc.to") || url.includes("animesonline")) {
@@ -256,6 +211,7 @@ export default function Room() {
         }
         
         sendVideoUrlChange(videoUrl);
+        setInputUrl("");
         toast.success("Video extraido e carregado para todos!", { id: toastId });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
@@ -267,44 +223,34 @@ export default function Room() {
       }
     } else {
       sendVideoUrlChange(url);
+      setInputUrl("");
       toast.success("Video carregado para todos!");
     }
   };
 
-  // Disable video controls for non-leaders
-  const videoControlsDisabled = !isLeader;
-
-  const handleSendMessage = () => {
-    const text = chatInput.trim();
-    if (!text) return;
-    sendChatMessage(text);
+  // Chat handlers
+  const handleSendMessage = useCallback(() => {
+    if (!chatInput.trim()) return;
+    sendChatMessage(chatInput);
     setChatInput("");
     sendStopTyping();
-  };
+  }, [chatInput, sendChatMessage, sendStopTyping]);
 
-  const handleChatInputChange = (value: string) => {
-    setChatInput(value);
+  const handleChatInputChange = useCallback((text: string) => {
+    setChatInput(text);
     
-    // Send typing indicator every 300ms max
     const now = Date.now();
     if (now - lastTypingTimeRef.current > 300) {
-      if (value.length > 0) {
-        sendTyping();
-      }
+      sendTyping();
       lastTypingTimeRef.current = now;
     }
-    
-    // Stop typing when input is empty
-    if (value.length === 0) {
-      sendStopTyping();
-    }
-  };
+  }, [sendTyping]);
 
   // Get typing users array for rendering
-  const typingUsersArray = Array.from(typingUsers);
+  const typingUsersArray = typingUsers;
 
   // Normalize and send reaction
-  const sendReaction = useCallback((emoji: string, x: number, y: number) => {
+  const handleReaction = useCallback((emoji: string, x: number, y: number) => {
     if (playerContainerRef.current) {
       const rect = playerContainerRef.current.getBoundingClientRect();
       const normalizedX = Math.max(0, Math.min(x - rect.left, rect.width));
@@ -387,255 +333,6 @@ export default function Room() {
             Voltar ao início
           </Button>
         </div>
-      </div>
-    );
-  }
-
-  if (isFullscreen) {
-    return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col" style={{ height: "100dvh" }}>
-        {/* Fullscreen video */}
-        <div className="flex-1 overflow-hidden relative">
-          <VideoPlayer
-            ref={playerRef}
-            videoUrl={videoUrl}
-            onPlay={handlePlay}
-            onPause={handlePause}
-            onSeek={handleSeek}
-            isSyncing={isSyncing}
-          />
-          {/* Reaction picker */}
-          <div className="absolute bottom-4 right-4 z-20">
-            <ReactionPicker onReact={sendReaction} />
-          </div>
-          {/* Floating reactions */}
-          {reactions.map((reaction) => (
-            <FloatingReaction
-              key={reaction.key}
-              emoji={reaction.emoji}
-              x={reaction.x}
-              y={reaction.y}
-              username={reaction.username}
-              onComplete={() => {
-                setReactions((prev) => prev.filter((r) => r.key !== reaction.key));
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Floating buttons */}
-        <div className="fixed bottom-6 left-6 flex flex-col gap-3 z-50">
-          <button
-            onClick={() => setShowChatInFullscreen(!showChatInFullscreen)}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
-              boxShadow: "0 0 20px oklch(0.65 0.28 310 / 0.4)",
-            }}
-            title="Abrir chat"
-          >
-            <MessageCircle className="w-5 h-5" style={{ color: "white" }} />
-          </button>
-          <button
-            onClick={() => setShowReactionsPanel(!showReactionsPanel)}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.55 0.22 200), oklch(0.45 0.18 220))",
-              boxShadow: "0 0 20px oklch(0.80 0.18 200 / 0.4)",
-            }}
-            title="Ver reações"
-          >
-            <Smile className="w-5 h-5" style={{ color: "white" }} />
-          </button>
-          <button
-            onClick={() => setIsFullscreen(false)}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.55 0.25 0), oklch(0.45 0.20 10))",
-              boxShadow: "0 0 20px oklch(0.70 0.28 0 / 0.4)",
-            }}
-            title="Sair do fullscreen (ESC)"
-          >
-            <Minimize2 className="w-5 h-5" style={{ color: "white" }} />
-          </button>
-        </div>
-
-        {/* Chat panel in fullscreen */}
-        {showChatInFullscreen && (
-          <div
-            className="fixed bottom-6 right-6 w-80 h-96 rounded-lg flex flex-col shadow-2xl z-40 animate-in slide-in-from-right duration-300"
-            style={{
-              background: "oklch(0.08 0.03 280 / 0.98)",
-              border: "1px solid oklch(0.65 0.28 310 / 0.3)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            {/* Chat header */}
-            <div
-              className="px-4 py-3 shrink-0 flex items-center justify-between"
-              style={{ borderBottom: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
-            >
-              <span className="font-display text-xs font-bold tracking-[0.2em] uppercase" style={{ color: "oklch(0.65 0.28 310)" }}>
-                Chat ao Vivo
-              </span>
-              <button
-                onClick={() => setShowChatInFullscreen(false)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-              {chatMessages.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground text-xs">Nenhuma mensagem ainda.</p>
-                </div>
-              )}
-              {chatMessages.map((msg, i) => {
-                const isSystem = msg.username === "sistema";
-                const isMe = msg.username === username;
-
-                if (isSystem) {
-                  return (
-                    <div key={i} className="text-center">
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{
-                          color: "oklch(0.80 0.18 200 / 0.8)",
-                          background: "oklch(0.80 0.18 200 / 0.08)",
-                        }}
-                      >
-                        {msg.text}
-                      </span>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={i} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                    <span
-                      className="text-[10px] font-medium mb-0.5 px-1"
-                      style={{
-                        color: isMe ? "oklch(0.65 0.28 310)" : "oklch(0.70 0.28 0)",
-                      }}
-                    >
-                      {isMe ? "Você" : msg.username}
-                    </span>
-                    <div
-                      className="max-w-[85%] px-3 py-2 rounded-2xl text-xs break-words"
-                      style={
-                        isMe
-                          ? {
-                              background: "oklch(0.55 0.28 310 / 0.25)",
-                              border: "1px solid oklch(0.65 0.28 310 / 0.3)",
-                              color: "oklch(0.95 0.01 280)",
-                              borderBottomRightRadius: "4px",
-                            }
-                          : {
-                              background: "oklch(0.12 0.04 280)",
-                              border: "1px solid oklch(0.25 0.06 280 / 0.5)",
-                              color: "oklch(0.90 0.02 280)",
-                              borderBottomLeftRadius: "4px",
-                            }
-                      }
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Typing indicators */}
-              {typingUsersArray.map((typingUsername) => (
-                <TypingIndicator key={`typing-${typingUsername}`} username={typingUsername} />
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Chat input */}
-            <div
-              className="px-3 py-3 shrink-0"
-              style={{ borderTop: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
-            >
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Msg..."
-                  value={chatInput}
-                  onChange={(e) => handleChatInputChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  className="h-8 text-xs"
-                  style={{
-                    background: "oklch(0.12 0.04 280)",
-                    border: "1px solid oklch(0.65 0.28 310 / 0.25)",
-                    color: "oklch(0.95 0.01 280)",
-                  }}
-                  maxLength={500}
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  size="sm"
-                  className="h-8 w-8 p-0 shrink-0"
-                  style={{
-                    background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
-                    boxShadow: "0 0 10px oklch(0.65 0.28 310 / 0.3)",
-                  }}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Reactions panel in fullscreen */}
-        {showReactionsPanel && (
-          <div
-            className="fixed top-6 right-6 max-w-sm max-h-96 rounded-lg overflow-y-auto shadow-2xl z-40 animate-in slide-in-from-top duration-300"
-            style={{
-              background: "oklch(0.08 0.03 280 / 0.98)",
-              border: "1px solid oklch(0.80 0.18 200 / 0.3)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <div
-              className="px-4 py-3 flex items-center justify-between sticky top-0"
-              style={{
-                background: "oklch(0.08 0.03 280 / 0.98)",
-                borderBottom: "1px solid oklch(0.80 0.18 200 / 0.15)",
-              }}
-            >
-              <span className="font-display text-xs font-bold tracking-[0.2em] uppercase" style={{ color: "oklch(0.80 0.18 200)" }}>
-                Reações
-              </span>
-              <button
-                onClick={() => setShowReactionsPanel(false)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 space-y-2">
-              {reactions.length === 0 ? (
-                <p className="text-center text-muted-foreground text-xs py-4">Nenhuma reação ainda.</p>
-              ) : (
-                reactions.map((r, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="text-xl">{r.emoji}</span>
-                    <span className="text-xs" style={{ color: "oklch(0.80 0.18 200)" }}>
-                      {r.username}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -743,9 +440,9 @@ export default function Room() {
         </div>
       </header>
 
-      {/* Main layout */}
-      <div className="relative z-10 flex flex-1 overflow-hidden">
-        {/* Video + URL input area */}
+      {/* Main layout - NOVO: Player em cima, chat embaixo */}
+      <div className="relative z-10 flex flex-col flex-1 overflow-hidden">
+        {/* Video player section */}
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* URL input bar */}
           <div
@@ -757,17 +454,19 @@ export default function Room() {
           >
             <Link2 className="w-4 h-4 shrink-0" style={{ color: "oklch(0.80 0.18 200 / 0.7)" }} />
             <Input
-              placeholder="Cole aqui o link do YouTube, Google Drive ou vídeo direto..."
+              placeholder={isLeader ? "Cole aqui o link do YouTube, Google Drive ou vídeo direto..." : "Apenas o lider pode carregar videos..."}
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLoadVideo()}
-              className="h-8 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
+              disabled={!isLeader}
+              className="h-8 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 disabled:opacity-50"
               style={{ color: "oklch(0.90 0.02 280)" }}
             />
             <Button
               onClick={handleLoadVideo}
+              disabled={!isLeader}
               size="sm"
-              className="h-8 shrink-0 font-display text-xs tracking-wider uppercase px-3"
+              className="h-8 shrink-0 font-display text-xs tracking-wider uppercase px-3 disabled:opacity-50"
               style={{
                 background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
                 boxShadow: "0 0 12px oklch(0.65 0.28 310 / 0.3)",
@@ -782,9 +481,9 @@ export default function Room() {
             <VideoPlayer
               ref={playerRef}
               videoUrl={videoUrl}
-              onPlay={isLeader ? handlePlay : () => toast.error("Apenas o lider pode controlar o video")}
-              onPause={isLeader ? handlePause : () => toast.error("Apenas o lider pode controlar o video")}
-              onSeek={isLeader ? handleSeek : () => toast.error("Apenas o lider pode controlar o video")}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onSeek={handleSeek}
               isSyncing={isSyncing}
             />
             {/* Sync indicator */}
@@ -814,7 +513,7 @@ export default function Room() {
               >
                 <Maximize2 className="w-4 h-4" />
               </button>
-              <ReactionPicker onReact={sendReaction} />
+              <ReactionPicker onReact={handleReaction} />
             </div>
             {/* Floating reactions */}
             {reactions.map((reaction) => (
@@ -832,34 +531,33 @@ export default function Room() {
           </div>
         </div>
 
-        {/* Chat sidebar */}
+        {/* Chat section - NOVO: Embaixo do player */}
         <div
-          className="w-72 xl:w-80 flex flex-col shrink-0"
+          className="h-48 flex flex-col shrink-0 overflow-hidden"
           style={{
             background: "oklch(0.08 0.03 280 / 0.97)",
-            borderLeft: "1px solid oklch(0.65 0.28 310 / 0.2)",
+            borderTop: "1px solid oklch(0.65 0.28 310 / 0.2)",
           }}
         >
           {/* Chat header */}
           <div
-            className="px-4 py-3 shrink-0 flex items-center gap-2"
+            className="px-4 py-2 shrink-0 flex items-center gap-2"
             style={{ borderBottom: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
           >
             <div
               className="w-2 h-2 rounded-full animate-neon-pulse"
               style={{ background: "oklch(0.65 0.28 310)", boxShadow: "0 0 6px oklch(0.65 0.28 310)" }}
             />
-            <span className="font-display text-xs font-bold tracking-[0.2em] uppercase" style={{ color: "oklch(0.65 0.28 310)" }}>
-              Chat ao Vivo
+            <span className="font-display text-xs tracking-widest" style={{ color: "oklch(0.65 0.28 310)" }}>
+              CHAT AO VIVO
             </span>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 text-xs">
             {chatMessages.length === 0 && (
-              <div className="text-center py-8">
+              <div className="text-center py-4">
                 <p className="text-muted-foreground text-xs">Nenhuma mensagem ainda.</p>
-                <p className="text-muted-foreground text-xs mt-1">Seja o primeiro a falar! 🎉</p>
               </div>
             )}
             {chatMessages.map((msg, i) => {
@@ -885,7 +583,7 @@ export default function Room() {
               return (
                 <div key={i} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                   <span
-                    className="text-[10px] font-medium mb-0.5 px-1"
+                    className="text-[9px] font-medium mb-0.5 px-1"
                     style={{
                       color: isMe ? "oklch(0.65 0.28 310)" : "oklch(0.70 0.28 0)",
                     }}
@@ -893,20 +591,20 @@ export default function Room() {
                     {isMe ? "Você" : msg.username}
                   </span>
                   <div
-                    className="max-w-[85%] px-3 py-2 rounded-2xl text-sm break-words"
+                    className="max-w-[85%] px-2 py-1 rounded-lg text-xs break-words"
                     style={
                       isMe
                         ? {
                             background: "oklch(0.55 0.28 310 / 0.25)",
                             border: "1px solid oklch(0.65 0.28 310 / 0.3)",
                             color: "oklch(0.95 0.01 280)",
-                            borderBottomRightRadius: "4px",
+                            borderBottomRightRadius: "2px",
                           }
                         : {
                             background: "oklch(0.12 0.04 280)",
                             border: "1px solid oklch(0.25 0.06 280 / 0.5)",
                             color: "oklch(0.90 0.02 280)",
-                            borderBottomLeftRadius: "4px",
+                            borderBottomLeftRadius: "2px",
                           }
                     }
                   >
@@ -915,26 +613,30 @@ export default function Room() {
                 </div>
               );
             })}
+            {/* Typing indicators */}
+            {typingUsersArray.map((typingUsername) => (
+              <TypingIndicator key={`typing-${typingUsername}`} username={typingUsername} />
+            ))}
             <div ref={chatEndRef} />
           </div>
 
           {/* Chat input */}
           <div
-            className="px-3 py-3 shrink-0"
+            className="px-3 py-2 shrink-0"
             style={{ borderTop: "1px solid oklch(0.65 0.28 310 / 0.15)" }}
           >
             <div className="flex gap-2">
               <Input
-                placeholder="Mensagem..."
+                placeholder="Msg..."
                 value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
+                onChange={(e) => handleChatInputChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage();
                   }
                 }}
-                className="h-9 text-sm"
+                className="h-7 text-xs"
                 style={{
                   background: "oklch(0.12 0.04 280)",
                   border: "1px solid oklch(0.65 0.28 310 / 0.25)",
@@ -945,18 +647,15 @@ export default function Room() {
               <Button
                 onClick={handleSendMessage}
                 size="sm"
-                className="h-9 w-9 p-0 shrink-0"
+                className="h-7 w-7 p-0 shrink-0"
                 style={{
                   background: "linear-gradient(135deg, oklch(0.55 0.28 310), oklch(0.45 0.25 280))",
                   boxShadow: "0 0 10px oklch(0.65 0.28 310 / 0.3)",
                 }}
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3 h-3" />
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-              Logado como <span style={{ color: "oklch(0.65 0.28 310)" }}>{username}</span>
-            </p>
           </div>
         </div>
       </div>

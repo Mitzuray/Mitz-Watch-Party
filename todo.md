@@ -92,3 +92,13 @@
 - [x] Frontend: orientar usuário a copiar link direto do vídeo
 - [x] Teste: verificar que extração não quebra (retorna null gracefully)
 - [x] NOTA: Tokyvideo e AnimesonlineCC tém proteção anti-scraping. Recomenda-se copiar link direto do vídeo ou usar YouTube/Google Drive
+
+
+## Melhorias de Layout e Sincronização (Nova Iteração)
+- [x] Reorganizar layout: player em cima (full width), chat em baixo
+- [x] Corrigir sincronização de YouTube (play/pause/seek)
+- [x] Corrigir sincronização de Google Drive (fazer funcionar para todos)
+- [x] Garantir que apenas líder controla player
+- [x] Garantir que apenas líder pode carregar novos vídeos
+- [x] Desabilitar botões de controle para não-líderes
+- [x] Testar sincronização com múltiplos usuários
