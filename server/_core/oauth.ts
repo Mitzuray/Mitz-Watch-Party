@@ -3,7 +3,6 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
-import { getYouTubeOAuthUrl, getDriveOAuthUrl, handleYouTubeCallback, handleDriveCallback } from "../oauthIntegrations";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -49,32 +48,6 @@ export function registerOAuthRoutes(app: Express) {
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
-    }
-  });
-
-  // YouTube OAuth redirect
-  app.get("/api/oauth/youtube", async (req: Request, res: Response) => {
-    try {
-      const state = Math.random().toString(36).substring(7);
-      res.cookie("oauth_state", state, { httpOnly: true, maxAge: 10 * 60 * 1000 });
-      const url = getYouTubeOAuthUrl(state);
-      res.redirect(url);
-    } catch (error) {
-      console.error("[YouTube OAuth] Redirect failed", error);
-      res.status(500).json({ error: "YouTube OAuth redirect failed" });
-    }
-  });
-
-  // Google Drive OAuth redirect
-  app.get("/api/oauth/drive", async (req: Request, res: Response) => {
-    try {
-      const state = Math.random().toString(36).substring(7);
-      res.cookie("oauth_state", state, { httpOnly: true, maxAge: 10 * 60 * 1000 });
-      const url = getDriveOAuthUrl(state);
-      res.redirect(url);
-    } catch (error) {
-      console.error("[Drive OAuth] Redirect failed", error);
-      res.status(500).json({ error: "Drive OAuth redirect failed" });
     }
   });
 }
