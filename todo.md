@@ -106,3 +106,10 @@
 
 ## Bugs Encontrados (Iteração 2)
 - [x] Mensagens de chat não estão sendo enviadas ou não aparecem para outros usuários (corrigido: socket reconectava constantemente, histórico não carregava)
+
+
+## Ajustes Solicitados (Iteração 3)
+- [x] Remover botão de tela cheia do player
+- [x] Remover botão de emoji do player
+- [x] Mover reações para aparecer apenas em mensagens de chat (botões de emoji em cada mensagem)
+- [x] Corrigir sincronização do Google Drive em tempo real (convertendo para URL de download direto sincronizável)

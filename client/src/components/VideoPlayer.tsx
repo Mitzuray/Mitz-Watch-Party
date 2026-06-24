@@ -41,14 +41,16 @@ function getYouTubeId(url: string): string | null {
   return null;
 }
 
-function getDriveEmbedUrl(url: string): string {
-  // Convert share URL to embed URL
-  const fileIdMatch = url.match(/\/file\/d\/([^/]+)/);
+function getDriveDownloadUrl(url: string): string {
+  // Convert Google Drive share URL to direct download URL for video playback
+  const fileIdMatch = url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
   if (fileIdMatch) {
-    return `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+    const fileId = fileIdMatch[1];
+    // Use export=download to get direct MP4 stream that works with <video> tag
+    return `https://drive.google.com/uc?id=${fileId}&export=download`;
   }
-  // Already an embed or preview URL
-  if (url.includes("/preview")) return url;
+  // If already a direct URL, return as-is
+  if (url.includes("/uc?id=")) return url;
   return url;
 }
 
@@ -62,7 +64,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     const videoType = detectVideoType(videoUrl);
     const youtubeId = videoType === "youtube" ? getYouTubeId(videoUrl) : null;
-    const driveEmbedUrl = videoType === "drive" ? getDriveEmbedUrl(videoUrl) : null;
+    const driveEmbedUrl = videoType === "drive" ? getDriveDownloadUrl(videoUrl) : null;
+    
+
 
     // Sync flag to avoid feedback loops
     useEffect(() => {
@@ -226,23 +230,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }
 
     if (videoType === "drive") {
+      // Google Drive videos now use direct download URLs for full synchronization support
       return (
-        <div className="w-full h-full flex flex-col">
-          <div className="bg-yellow-900/30 border border-yellow-700/50 px-3 py-2 text-xs text-yellow-200">
-            ⚠️ Google Drive: Sincronização limitada. Use YouTube ou URL direta para melhor experiência.
-          </div>
-          <iframe
-            src={driveEmbedUrl ?? ""}
-            className="flex-1 border-0"
-            allow="autoplay"
-            allowFullScreen
-            title="Google Drive Video"
-          />
-        </div>
+        <video
+          ref={videoRef}
+          src={driveEmbedUrl ?? ""}
+          className="w-full h-full"
+          controls
+          playsInline
+          preload="metadata"
+          onPlay={() => {
+            if (!isSyncingRef.current) {
+              onPlay?.(videoRef.current?.currentTime ?? 0);
+            }
+          }}
+          onPause={() => {
+            if (!isSyncingRef.current) {
+              onPause?.(videoRef.current?.currentTime ?? 0);
+            }
+          }}
+          onSeeked={() => {
+            if (!isSyncingRef.current) {
+              onSeek?.(videoRef.current?.currentTime ?? 0);
+            }
+          }}
+        />
       );
     }
 
-    // Direct video
+    // Direct video (MP4, WebM, etc)
     return (
       <video
         ref={videoRef}

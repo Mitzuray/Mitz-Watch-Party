@@ -4,11 +4,11 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Copy, Users, Send, LogOut, Radio, Link2, CheckCircle2, Maximize2, Minimize2, MessageCircle, Smile } from "lucide-react";
+import { Copy, Users, Send, LogOut, Radio, Link2, CheckCircle2, MessageCircle, Smile } from "lucide-react";
 import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
 import RaveParticles from "@/components/RaveParticles";
-import ReactionPicker from "@/components/ReactionPicker";
-import FloatingReaction from "@/components/FloatingReaction";
+// import ReactionPicker from "@/components/ReactionPicker"; // Removed - reactions only on chat messages
+// import FloatingReaction from "@/components/FloatingReaction"; // Removed - reactions on messages
 import TypingIndicator from "@/components/TypingIndicator";
 import { useSocket, ChatMessage, VideoState, Reaction, TypingUser } from "@/hooks/useSocket";
 
@@ -28,10 +28,9 @@ export default function Room() {
   const [participantCount, setParticipantCount] = useState(1);
   const [codeCopied, setCodeCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [reactions, setReactions] = useState<Array<Reaction & { key: string }>>([])
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showChatInFullscreen, setShowChatInFullscreen] = useState(false);
-  const [showReactionsPanel, setShowReactionsPanel] = useState(false);
+  // Reactions now appear on chat messages only, not floating
+  // const [isFullscreen, setIsFullscreen] = useState(false); // Removed
+  // Fullscreen and reactions panel removed
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [leader, setLeader] = useState<string | null>(null);
@@ -40,7 +39,7 @@ export default function Room() {
   const playerRef = useRef<VideoPlayerHandle>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reactionCounterRef = useRef(0);
+  // Reaction counter removed - reactions now on messages only
   const lastTypingTimeRef = useRef(0);
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -79,9 +78,8 @@ export default function Room() {
     onParticipantsUpdate: (count: number) => {
       setParticipantCount(count);
     },
-    onReaction: (reaction: Reaction) => {
-      const key = `${reactionCounterRef.current++}`;
-      setReactions((prev) => [...prev, { ...reaction, key }]);
+    onReaction: () => {
+      // Reactions now handled in chat messages, not floating
     },
     onTyping: (typingUser: TypingUser) => {
       setTypingUsers((prev) => {
@@ -254,16 +252,10 @@ export default function Room() {
   // Get typing users array for rendering
   const typingUsersArray = typingUsers;
 
-  // Normalize and send reaction
-  const handleReaction = useCallback((emoji: string, x: number, y: number) => {
-    if (playerContainerRef.current) {
-      const rect = playerContainerRef.current.getBoundingClientRect();
-      const normalizedX = Math.max(0, Math.min(x - rect.left, rect.width));
-      const normalizedY = Math.max(0, Math.min(y - rect.top, rect.height));
-      sendReactionSocket(emoji, normalizedX, normalizedY);
-    } else {
-      sendReactionSocket(emoji, x, y);
-    }
+  // Send reaction when user clicks emoji button on a message
+  const handleReaction = useCallback((emoji: string) => {
+    // Reactions on messages don't need position coordinates
+    sendReactionSocket(emoji, 0, 0);
   }, [sendReactionSocket])
 
   const handleCopyCode = () => {
@@ -278,30 +270,7 @@ export default function Room() {
     navigate("/");
   };
 
-  // Handle escape key to exit fullscreen
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen) {
-        setIsFullscreen(false);
-        setShowChatInFullscreen(false);
-        setShowReactionsPanel(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFullscreen]);
-
-  // Prevent body scroll when fullscreen
-  useEffect(() => {
-    if (isFullscreen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isFullscreen]);
+  // Fullscreen and escape key handling removed
 
   // Cleanup typing timeouts on unmount
   useEffect(() => {
@@ -504,35 +473,7 @@ export default function Room() {
                 ⚡ SINCRONIZANDO
               </div>
             )}
-            {/* Fullscreen + Reaction picker */}
-            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
-              <button
-                onClick={() => setIsFullscreen(true)}
-                className="h-9 w-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                style={{
-                  background: "oklch(0.12 0.04 280)",
-                  border: "1px solid oklch(0.65 0.28 310 / 0.3)",
-                  color: "oklch(0.65 0.28 310)",
-                }}
-                title="Tela cheia"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
-              <ReactionPicker onReact={handleReaction} />
-            </div>
-            {/* Floating reactions */}
-            {reactions.map((reaction) => (
-              <FloatingReaction
-                key={reaction.key}
-                emoji={reaction.emoji}
-                x={reaction.x}
-                y={reaction.y}
-                username={reaction.username}
-                onComplete={() => {
-                  setReactions((prev) => prev.filter((r) => r.key !== reaction.key));
-                }}
-              />
-            ))}
+            {/* Reactions now appear on chat messages only */}
           </div>
         </div>
 
