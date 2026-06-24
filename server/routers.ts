@@ -6,6 +6,8 @@ import { publicProcedure, router } from "./_core/trpc";
 import { createRoom, getRoomByCode, getMessagesByRoom, updateRoomLeader } from "./db";
 import { nanoid } from "nanoid";
 import { extractVideoUrl } from "./videoExtractor";
+import { extractGoogleDriveVideoUrl, parseGoogleDriveUrl } from "./googleDriveIntegration";
+import { TRPCError } from "@trpc/server";
 
 export const appRouter = router({
   system: systemRouter,
@@ -68,7 +70,26 @@ export const appRouter = router({
         }
         return { videoUrl, originalUrl: input.url };
       }),
+
+    extractGoogleDriveVideo: publicProcedure
+      .input(z.object({ url: z.string().url() }))
+      .query(async ({ input }) => {
+        const fileId = parseGoogleDriveUrl(input.url);
+        if (!fileId) {
+          throw new Error("URL do Google Drive invalida");
+        }
+        const videoUrl = await extractGoogleDriveVideoUrl(fileId);
+        if (!videoUrl) {
+          throw new Error("Nao foi possivel extrair o video deste arquivo do Google Drive. Verifique se e um arquivo de video e se esta compartilhado.");
+        }
+        return { videoUrl, originalUrl: input.url, fileId };
+      }),
   }),
 });
 
 export type AppRouter = typeof appRouter;
+
+// Ensure Google Drive credentials are available
+if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET) {
+  console.warn("[Warning] Google Drive API credentials not configured. Google Drive video extraction will not work.");
+}

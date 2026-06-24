@@ -113,3 +113,12 @@
 - [x] Remover botão de emoji do player
 - [x] Mover reações para aparecer apenas em mensagens de chat (botões de emoji em cada mensagem)
 - [x] Corrigir sincronização do Google Drive em tempo real (convertendo para URL de download direto sincronizável)
+
+
+## Google Drive API Integration (Nova Feature)
+- [x] Adicionar credenciais do Google Drive API como secrets
+- [x] Instalar biblioteca googleapis
+- [x] Criar módulo googleDriveIntegration.ts com funções de extração
+- [x] Adicionar rota tRPC extractGoogleDriveVideo
+- [x] Adicionar variáveis de ambiente no env.ts
+- [x] Testes de validação de credenciais passando
