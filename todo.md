@@ -102,3 +102,7 @@
 - [x] Garantir que apenas líder pode carregar novos vídeos
 - [x] Desabilitar botões de controle para não-líderes
 - [x] Testar sincronização com múltiplos usuários
+
+
+## Bugs Encontrados (Iteração 2)
+- [x] Mensagens de chat não estão sendo enviadas ou não aparecem para outros usuários (corrigido: socket reconectava constantemente, histórico não carregava)

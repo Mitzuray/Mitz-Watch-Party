@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 
 export interface ChatMessage {
@@ -57,6 +57,38 @@ export function useSocket({
   onLeadershipTransferred,
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
+  
+  // Use refs to avoid dependency array issues and socket reconnection
+  const callbacksRef = useRef({
+    onVideoState,
+    onVideoUrlChange,
+    onChatMessage,
+    onChatHistory,
+    onParticipantsUpdate,
+    onUserJoined,
+    onUserLeft,
+    onReaction,
+    onTyping,
+    onStopTyping,
+    onLeadershipTransferred,
+  });
+
+  // Update callbacks ref when any callback changes
+  useEffect(() => {
+    callbacksRef.current = {
+      onVideoState,
+      onVideoUrlChange,
+      onChatMessage,
+      onChatHistory,
+      onParticipantsUpdate,
+      onUserJoined,
+      onUserLeft,
+      onReaction,
+      onTyping,
+      onStopTyping,
+      onLeadershipTransferred,
+    };
+  }, [onVideoState, onVideoUrlChange, onChatMessage, onChatHistory, onParticipantsUpdate, onUserJoined, onUserLeft, onReaction, onTyping, onStopTyping, onLeadershipTransferred]);
 
   useEffect(() => {
     if (!roomCode || !username) return;
@@ -73,15 +105,15 @@ export function useSocket({
     });
 
     socket.on("video-state", (state: VideoState) => {
-      onVideoState?.(state);
+      callbacksRef.current.onVideoState?.(state);
     });
 
     socket.on("video-url-change", ({ videoUrl }: { videoUrl: string }) => {
-      onVideoUrlChange?.(videoUrl);
+      callbacksRef.current.onVideoUrlChange?.(videoUrl);
     });
 
     socket.on("chat-message", (msg: ChatMessage) => {
-      onChatMessage?.(msg);
+      callbacksRef.current.onChatMessage?.(msg);
     });
 
     socket.on("chat-history", (msgs: Array<{ username: string; text: string; createdAt: string | Date }>) => {
@@ -90,35 +122,35 @@ export function useSocket({
         text: m.text,
         createdAt: typeof m.createdAt === "string" ? m.createdAt : m.createdAt.toISOString(),
       }));
-      onChatHistory?.(normalized);
+      callbacksRef.current.onChatHistory?.(normalized);
     });
 
     socket.on("participants-update", ({ count }: { count: number }) => {
-      onParticipantsUpdate?.(count);
+      callbacksRef.current.onParticipantsUpdate?.(count);
     });
 
     socket.on("user-joined", ({ username: u }: { username: string }) => {
-      onUserJoined?.(u);
+      callbacksRef.current.onUserJoined?.(u);
     });
 
     socket.on("user-left", ({ username: u }: { username: string }) => {
-      onUserLeft?.(u);
+      callbacksRef.current.onUserLeft?.(u);
     });
 
     socket.on("reaction-broadcast", (reaction: Reaction) => {
-      onReaction?.(reaction);
+      callbacksRef.current.onReaction?.(reaction);
     });
 
     socket.on("typing-broadcast", (user: TypingUser) => {
-      onTyping?.(user);
+      callbacksRef.current.onTyping?.(user);
     });
 
     socket.on("stop-typing-broadcast", ({ username: u }: { username: string }) => {
-      onStopTyping?.(u);
+      callbacksRef.current.onStopTyping?.(u);
     });
 
     socket.on("leadership-transferred", ({ newLeader }: { newLeader: string }) => {
-      onLeadershipTransferred?.(newLeader);
+      callbacksRef.current.onLeadershipTransferred?.(newLeader);
     });
 
     return () => {
@@ -126,7 +158,7 @@ export function useSocket({
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, username, onLeadershipTransferred]);
+  }, [roomCode, username]);
 
   const sendVideoSync = useCallback((state: VideoState) => {
     socketRef.current?.emit("video-sync", { roomCode, state });

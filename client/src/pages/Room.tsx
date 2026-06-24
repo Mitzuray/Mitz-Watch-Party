@@ -23,6 +23,7 @@ export default function Room() {
   const [videoUrl, setVideoUrl] = useState("");
   const [inputUrl, setInputUrl] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [participantCount, setParticipantCount] = useState(1);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -67,6 +68,10 @@ export default function Room() {
     },
     onVideoUrlChange: (url: string) => {
       setVideoUrl(url);
+    },
+    onChatHistory: (msgs: ChatMessage[]) => {
+      setChatMessages(msgs);
+      setChatHistoryLoaded(true);
     },
     onChatMessage: (msg: ChatMessage) => {
       setChatMessages((prev) => [...prev, msg]);
