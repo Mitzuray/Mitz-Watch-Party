@@ -2,8 +2,8 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
-import { createRoom, getRoomByCode, getMessagesByRoom, updateRoomLeader } from "./db";
+import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { createRoom, getRoomByCode, getMessagesByRoom, updateRoomLeader, getYouTubeIntegration, getDriveIntegration, deleteYouTubeIntegration, deleteDriveIntegration } from "./db";
 import { nanoid } from "nanoid";
 import { extractVideoUrl } from "./videoExtractor";
 import { extractGoogleDriveVideoUrl, parseGoogleDriveUrl } from "./googleDriveIntegration";
@@ -84,6 +84,40 @@ export const appRouter = router({
         }
         return { videoUrl, originalUrl: input.url, fileId };
       }),
+  }),
+
+  integrations: router({
+    getStatus: protectedProcedure.query(async ({ ctx }) => {
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const youtubeIntegration = await getYouTubeIntegration(ctx.user.id);
+      const driveIntegration = await getDriveIntegration(ctx.user.id);
+
+      return {
+        youtubeConnected: !!youtubeIntegration,
+        driveConnected: !!driveIntegration,
+      };
+    }),
+
+    disconnectYoutube: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      await deleteYouTubeIntegration(ctx.user.id);
+      return { success: true };
+    }),
+
+    disconnectDrive: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      await deleteDriveIntegration(ctx.user.id);
+      return { success: true };
+    }),
   }),
 });
 

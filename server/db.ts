@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, rooms, messages, InsertRoom, InsertMessage } from "../drizzle/schema";
+import { InsertUser, users, rooms, messages, InsertRoom, InsertMessage, youtubeIntegrations, driveIntegrations, YouTubeIntegration, DriveIntegration, InsertYouTubeIntegration, InsertDriveIntegration } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -128,4 +128,72 @@ export async function insertMessage(data: InsertMessage) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.insert(messages).values(data);
+}
+
+// --- YouTube Integration helpers ---
+
+export async function saveYouTubeIntegration(data: InsertYouTubeIntegration): Promise<YouTubeIntegration> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if integration already exists
+  const existing = await db.select().from(youtubeIntegrations).where(eq(youtubeIntegrations.userId, data.userId)).limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing
+    await db.update(youtubeIntegrations).set(data).where(eq(youtubeIntegrations.userId, data.userId));
+    return existing[0];
+  } else {
+    // Insert new
+    await db.insert(youtubeIntegrations).values(data);
+    const result = await db.select().from(youtubeIntegrations).where(eq(youtubeIntegrations.userId, data.userId)).limit(1);
+    return result[0];
+  }
+}
+
+export async function getYouTubeIntegration(userId: number): Promise<YouTubeIntegration | undefined> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(youtubeIntegrations).where(eq(youtubeIntegrations.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteYouTubeIntegration(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(youtubeIntegrations).where(eq(youtubeIntegrations.userId, userId));
+}
+
+// --- Google Drive Integration helpers ---
+
+export async function saveDriveIntegration(data: InsertDriveIntegration): Promise<DriveIntegration> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if integration already exists
+  const existing = await db.select().from(driveIntegrations).where(eq(driveIntegrations.userId, data.userId)).limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing
+    await db.update(driveIntegrations).set(data).where(eq(driveIntegrations.userId, data.userId));
+    return existing[0];
+  } else {
+    // Insert new
+    await db.insert(driveIntegrations).values(data);
+    const result = await db.select().from(driveIntegrations).where(eq(driveIntegrations.userId, data.userId)).limit(1);
+    return result[0];
+  }
+}
+
+export async function getDriveIntegration(userId: number): Promise<DriveIntegration | undefined> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(driveIntegrations).where(eq(driveIntegrations.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteDriveIntegration(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(driveIntegrations).where(eq(driveIntegrations.userId, userId));
 }
